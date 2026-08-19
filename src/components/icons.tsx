@@ -42,6 +42,10 @@ export function SparkIcon(props: IconProps) {
   return <IconBase {...props}><path d="m12 3 1.4 4.1L17 9l-3.6 1.9L12 15l-1.4-4.1L7 9l3.6-1.9L12 3Z" /><path d="m19 15 .7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9L19 15Z" /></IconBase>;
 }
 
+export function MegaphoneIcon(props: IconProps) {
+  return <IconBase {...props}><path d="m3 11 13-5v12L3 13v-2Z" /><path d="M7 14v3a2 2 0 0 0 2 2h1" /><path d="M19 9.5c1 .8 1.5 1.6 1.5 2.5s-.5 1.7-1.5 2.5" /></IconBase>;
+}
+
 export function FileIcon(props: IconProps) {
   return <IconBase {...props}><path d="M6 3h8l4 4v14H6V3Z" /><path d="M14 3v5h4M9 13h6M9 17h6" /></IconBase>;
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ButtonLink, SectionHeading } from "../components/ui";
-import { CheckIcon, FileIcon, GitBranchIcon, LayersIcon, SearchIcon, ShieldIcon, SparkIcon } from "../components/icons";
+import { CheckIcon, FileIcon, GitBranchIcon, LayersIcon, MegaphoneIcon, SearchIcon, ShieldIcon, SparkIcon } from "../components/icons";
 import { openFeedbackPanel } from "../features/feedback/feedback";
 
 interface CapabilityCardProps {
@@ -12,12 +12,58 @@ interface CapabilityCardProps {
   cta: string;
   to?: string;
   onAction?: () => void;
-  accent?: boolean;
+  tone: "audit" | "profile" | "career" | "readme" | "resume" | "feedback";
 }
 
-function CapabilityCard({ icon, label, title, description, cta, to, onAction, accent = false }: CapabilityCardProps) {
-  const actionClasses = `inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold transition ${accent ? "bg-lime-300 text-lime-950 hover:bg-lime-400" : "border border-slate-300 bg-white text-cobalt-700 hover:border-cobalt-300"}`;
-  return <article className={`group flex min-h-full flex-col overflow-hidden rounded-3xl border p-6 transition duration-300 hover:-translate-y-1 hover:shadow-soft sm:p-7 ${accent ? "border-cobalt-200 bg-cobalt-950 text-white" : "border-slate-200 bg-white"}`}><div className="flex items-start justify-between gap-4"><span className={`grid h-11 w-11 place-items-center rounded-xl ${accent ? "bg-white/10 text-lime-300" : "bg-cobalt-50 text-cobalt-600"}`}>{icon}</span><span className={`rounded-md px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[.14em] ${accent ? "bg-white/10 text-lime-300" : "bg-lime-50 text-lime-900"}`}>Available</span></div><p className={`mt-7 font-mono text-[10px] font-semibold uppercase tracking-[.15em] ${accent ? "text-lime-300" : "text-cobalt-600"}`}>{label}</p><h3 className="mt-3 text-xl font-semibold tracking-[-0.025em]">{title}</h3><p className={`mt-3 flex-1 text-sm leading-6 ${accent ? "text-white/65" : "text-slate-600"}`}>{description}</p><div className="mt-6">{to ? <Link to={to} className={actionClasses}>{cta} →</Link> : <button type="button" onClick={onAction} className={actionClasses}>{cta} →</button>}</div></article>;
+const capabilityTones: Record<CapabilityCardProps["tone"], { card: string; icon: string; badge: string; label: string; action: string }> = {
+  audit: {
+    card: "border-cobalt-200 bg-cobalt-50/80",
+    icon: "bg-cobalt-100 text-cobalt-700",
+    badge: "bg-cobalt-100 text-cobalt-700",
+    label: "text-cobalt-700",
+    action: "bg-cobalt-600 text-white hover:bg-cobalt-700",
+  },
+  profile: {
+    card: "border-emerald-200 bg-emerald-50/70",
+    icon: "bg-emerald-100 text-emerald-700",
+    badge: "bg-emerald-100 text-emerald-800",
+    label: "text-emerald-700",
+    action: "border border-emerald-200 bg-white/80 text-emerald-800 hover:border-emerald-300 hover:bg-white",
+  },
+  career: {
+    card: "border-violet-200 bg-violet-50/70",
+    icon: "bg-violet-100 text-violet-700",
+    badge: "bg-violet-100 text-violet-800",
+    label: "text-violet-700",
+    action: "border border-violet-200 bg-white/80 text-violet-800 hover:border-violet-300 hover:bg-white",
+  },
+  readme: {
+    card: "border-amber-200 bg-amber-50/70",
+    icon: "bg-amber-100 text-amber-800",
+    badge: "bg-amber-100 text-amber-900",
+    label: "text-amber-800",
+    action: "border border-amber-200 bg-white/80 text-amber-900 hover:border-amber-300 hover:bg-white",
+  },
+  resume: {
+    card: "border-rose-200 bg-rose-50/70",
+    icon: "bg-rose-100 text-rose-700",
+    badge: "bg-rose-100 text-rose-800",
+    label: "text-rose-700",
+    action: "border border-rose-200 bg-white/80 text-rose-800 hover:border-rose-300 hover:bg-white",
+  },
+  feedback: {
+    card: "border-cyan-200 bg-cyan-50/70",
+    icon: "bg-cyan-100 text-cyan-700",
+    badge: "bg-cyan-100 text-cyan-800",
+    label: "text-cyan-700",
+    action: "border border-cyan-200 bg-white/80 text-cyan-800 hover:border-cyan-300 hover:bg-white",
+  },
+};
+
+function CapabilityCard({ icon, label, title, description, cta, to, onAction, tone }: CapabilityCardProps) {
+  const colors = capabilityTones[tone];
+  const actionClasses = `inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold transition ${colors.action}`;
+  return <article className={`group flex min-h-full flex-col overflow-hidden rounded-3xl border p-6 text-ink transition duration-300 hover:-translate-y-1 hover:shadow-soft sm:p-7 ${colors.card}`}><div className="flex items-start justify-between gap-4"><span className={`grid h-11 w-11 place-items-center rounded-xl ${colors.icon}`}>{icon}</span><span className={`rounded-md px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[.14em] ${colors.badge}`}>Available</span></div><p className={`mt-7 font-mono text-[10px] font-semibold uppercase tracking-[.15em] ${colors.label}`}>{label}</p><h3 className="mt-3 text-xl font-semibold tracking-[-0.025em]">{title}</h3><p className="mt-3 flex-1 text-sm leading-6 text-slate-600">{description}</p><div className="mt-6">{to ? <Link to={to} className={actionClasses}>{cta} →</Link> : <button type="button" onClick={onAction} className={actionClasses}>{cta} →</button>}</div></article>;
 }
 
 function existingWorkflowContext(): { username: string; hasCareer: boolean } | null {
@@ -81,16 +127,14 @@ export function HomePage() {
 
       <section id="how-it-works" className="bg-white py-20 sm:py-24"><div className="container-page"><SectionHeading eyebrow="How it works" title="Public data in. Explainable recommendations out." align="center" /><div className="mx-auto mt-12 grid max-w-5xl gap-4 md:grid-cols-3">{[["01", "Enter a profile", "Use a GitHub username or profile URL. No token or authentication is required."], ["02", "Review the evidence", "We fetch the public profile and paginated repository listing, then apply versioned rules."], ["03", "Inspect and decide", "Filter recommendations and open any repository to understand the contributing signals."]].map(([number, title, text]) => <article key={number} className="rounded-2xl border border-slate-200 p-6"><p className="font-mono text-xs font-bold text-cobalt-600">{number}</p><h3 className="mt-6 text-lg font-semibold">{title}</h3><p className="mt-3 text-sm leading-6 text-slate-600">{text}</p></article>)}</div></div></section>
 
-      <section id="features" className="border-y border-slate-200 bg-[#f1f2ee] py-20 sm:py-24 lg:py-28"><div className="container-page"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><SectionHeading eyebrow="Capabilities" title="One evidence layer, useful across your career presence." /><p className="max-w-md text-sm leading-6 text-slate-600 lg:text-right">Start with public GitHub evidence, build a focused developer profile, then turn the same evidence into career-ready outputs.</p></div><div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <CapabilityCard icon={<SearchIcon className="h-5 w-5" />} label="GitHub Audit" title="Know what your public work communicates." description="Review repositories with transparent scoring, evidence traces, and non-destructive recommendations." cta="Start here" to="/audit" accent />
-        <CapabilityCard icon={<GitBranchIcon className="h-5 w-5" />} label="GitHub Profile Preparation" title="Make your strongest work easier to find." description="Curate repositories, resolve cleanup decisions, and prepare a focused GitHub profile without changing your account." cta={context ? "Open GitHub profile" : "Start with audit"} to={preparationRoute} />
-        <CapabilityCard icon={<LayersIcon className="h-5 w-5" />} label="Career Evidence Profile" title="Build one source of truth for your career evidence." description="Combine GitHub evidence, your resume, and information you provide into one structured profile with sources preserved." cta={context ? "Open career profile" : "Start with audit"} to={careerRoute} />
-        <CapabilityCard icon={<FileIcon className="h-5 w-5" />} label="GitHub Profile README" title="Turn your evidence into a profile people can understand." description="Create an editable GitHub Profile README from selected evidence, with safe preview, Markdown source, copy, and download." cta={context?.hasCareer ? "Build README" : "Start with audit"} to={readmeRoute} />
-        <CapabilityCard icon={<FileIcon className="h-5 w-5" />} label="Resume Studio" title="Turn the same evidence into a professional resume." description="Build an editable one-column resume with LaTeX source and Word export, while keeping evidence and presentation edits separate." cta={context?.hasCareer ? "Open Resume Studio" : "Start with audit"} to={resumeRoute} />
-        <CapabilityCard icon={<SparkIcon className="h-5 w-5" />} label="Product Feedback" title="Help shape what DevPersonify builds next." description="Tell us what worked, what needs work, or what you want next." cta="Send feedback" onAction={openFeedbackPanel} />
-      </div></div></section>
-
-      <section className="bg-white py-20 sm:py-24"><div className="container-page"><div className="grid gap-8 rounded-[32px] border border-lime-300 bg-lime-50 px-6 py-10 sm:px-10 sm:py-12 lg:grid-cols-[1fr_auto] lg:items-center lg:px-14"><div><p className="font-mono text-xs font-semibold uppercase tracking-[.18em] text-lime-900">Help shape DevPersonify</p><h2 className="mt-4 max-w-2xl text-balance text-3xl font-semibold tracking-[-.04em] text-ink sm:text-4xl">Your feedback becomes the next iteration.</h2><p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">DevPersonify is being built around real developer workflows. Tell us what worked, what felt confusing, or what you want us to build next.</p><p className="mt-4 max-w-2xl text-xs leading-5 text-slate-500">No account required. Feedback is currently saved locally in this V1 launch experience and never includes GitHub repositories, resume content, or generated career documents.</p></div><button type="button" onClick={openFeedbackPanel} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-ink px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-slate-700">Send feedback →</button></div></div></section>
+      <section id="features" className="border-y border-slate-200 bg-[#f1f2ee] py-20 sm:py-24 lg:py-28"><div className="container-page"><div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end"><SectionHeading eyebrow="Capabilities" title="One evidence layer, useful across your career presence." /><p className="max-w-md text-sm leading-6 text-slate-600 lg:text-right">Start with public GitHub evidence, build a focused developer profile, then turn the same evidence into career-ready outputs.</p></div><div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <CapabilityCard icon={<SearchIcon className="h-5 w-5" />} label="GitHub Audit" title="Know what your public work communicates." description="Review repositories with transparent scoring, evidence traces, and non-destructive recommendations." cta="Start here" to="/audit" tone="audit" />
+        <CapabilityCard icon={<GitBranchIcon className="h-5 w-5" />} label="GitHub Profile Preparation" title="Make your strongest work easier to find." description="Curate repositories, resolve cleanup decisions, and prepare a focused GitHub profile without changing your account." cta={context ? "Open GitHub profile" : "Start with audit"} to={preparationRoute} tone="profile" />
+        <CapabilityCard icon={<LayersIcon className="h-5 w-5" />} label="Career Evidence Profile" title="Build one source of truth for your career evidence." description="Combine GitHub evidence, your resume, and information you provide into one structured profile with sources preserved." cta={context ? "Open career profile" : "Start with audit"} to={careerRoute} tone="career" />
+        <CapabilityCard icon={<FileIcon className="h-5 w-5" />} label="GitHub Profile README" title="Turn your evidence into a profile people can understand." description="Create an editable GitHub Profile README from selected evidence, with safe preview, Markdown source, copy, and download." cta={context?.hasCareer ? "Build README" : "Start with audit"} to={readmeRoute} tone="readme" />
+        <CapabilityCard icon={<FileIcon className="h-5 w-5" />} label="Resume Studio" title="Turn the same evidence into a professional resume." description="Build an editable one-column resume with LaTeX source and Word export, while keeping evidence and presentation edits separate." cta={context?.hasCareer ? "Open Resume Studio" : "Start with audit"} to={resumeRoute} tone="resume" />
+        <CapabilityCard icon={<SparkIcon className="h-5 w-5" />} label="Product Feedback" title="Help shape what DevPersonify builds next." description="Tell us what worked, what needs work, or what you want next." cta="Send feedback" onAction={openFeedbackPanel} tone="feedback" />
+      </div><div className="mt-6 grid gap-6 rounded-[28px] border border-emerald-200 bg-emerald-50/70 px-6 py-7 sm:px-8 lg:grid-cols-2 lg:items-center lg:gap-10"><div className="grid gap-5 sm:grid-cols-[96px_1fr] sm:items-center"><span className="hidden h-24 w-24 place-items-center rounded-full border border-emerald-200 bg-white/50 text-emerald-700 sm:grid"><MegaphoneIcon className="h-11 w-11" /></span><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-800">Help shape DevPersonify</p><h2 className="mt-3 max-w-lg text-balance text-2xl font-semibold tracking-[-.035em] text-ink sm:text-3xl">Your feedback becomes the next iteration.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">DevPersonify is being built around real developer workflows. Tell us what worked, what felt confusing, or what you want us to build next.</p></div></div><div className="flex flex-col gap-4 lg:justify-self-end lg:pl-4"><button type="button" onClick={openFeedbackPanel} className="inline-flex min-h-11 w-fit items-center justify-center rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700">Send feedback →</button><ul className="max-w-md space-y-1.5 text-xs leading-4 text-slate-600">{["No account required.", "Your feedback does not include GitHub repositories, resume content, or generated career documents.", "Feedback is saved locally in this V1 launch experience."].map((item) => <li key={item} className="flex gap-2"><CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />{item}</li>)}</ul></div></div></div></section>
 
       <section className="bg-white py-20 sm:py-24"><div className="container-page grid gap-10 rounded-[32px] bg-cobalt-950 px-6 py-10 text-white sm:px-10 sm:py-12 lg:grid-cols-[1fr_.78fr] lg:items-center lg:px-14 lg:py-14"><div><p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-lime-300">Evidence before claims</p><h2 className="mt-4 max-w-xl text-balance text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Useful without a black box.</h2><p className="mt-5 max-w-xl text-base leading-7 text-white/70">Scores use published deterministic rules. They describe visible public repository evidence—not engineering ability, employability, or guaranteed outcomes.</p></div><div className="grid gap-3">{[[<ShieldIcon className="h-5 w-5" />, "Read-only by design", "No automatic archive, delete, edit, OAuth, or write access."], [<SearchIcon className="h-5 w-5" />, "Unknown is not absent", "Unfetched signals do not count as missing evidence."]].map(([icon, title, text]) => <div key={String(title)} className="flex gap-4 rounded-2xl border border-white/10 bg-white/5 p-4"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lime-300 text-lime-900">{icon}</span><div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-xs leading-5 text-white/60">{text}</p></div></div>)}</div></div></section>
 
