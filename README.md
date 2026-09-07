@@ -8,6 +8,8 @@ DevPersonify is a developer career evidence platform. V1 turns public GitHub dat
 
 Phase 5 — Evidence-backed LaTeX Resume Builder: **PASSED**.
 
+DevPersonify Learn — the project-first, evidence-oriented learning product (**21 Days — Build, Break & Operate**) — is developed as a **separate web application** to keep this DevPersonify product focused. This repository retains the course planning documents under [`docs/learn/`](docs/learn/) (repository evolution map, starter-repository spec, checkpoint strategy, reference-vs-starter, and the engine/course-authoring reference); the Learn UI and engine live in the dedicated Learn repository.
+
 The canonical Career Evidence Profile powers independent GitHub Profile README and Resume Studio outputs. Resume Studio now exports both deterministic LaTeX and a real browser-generated Word/DOCX file from the same selections, ordering, and presentation overrides. Shared clipboard fallbacks, exact local downloads, and a privacy-preserving local feedback control complete V1 launch hardening without changing source evidence. No AI, external compiler/document service, backend, database, authentication, paid API, OAuth, GitHub token, or write operation is used.
 
 ## Intended V1 stack
