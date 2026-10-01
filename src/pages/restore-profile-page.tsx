@@ -1,9 +1,9 @@
 import { useState, type ChangeEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { exportProfileBackup, importProfileBackup, MAX_PROFILE_BACKUP_BYTES } from "../features/career-profile/profile-backup";
+import { importProfileBackup, MAX_PROFILE_BACKUP_BYTES } from "../features/career-profile/profile-backup";
 import { listSavedCareerProfiles, loadCareerProfile, saveCareerProfile } from "../features/career-profile/career-profile-storage";
 
-import { downloadTextFile } from "../lib/browser-output";
+import { downloadCareerBackup } from "../features/career-profile/profile-history";
 import type { CareerEvidenceProfile } from "../domain/career-evidence-profile";
 
 export function RestoreProfilePage() {
@@ -13,8 +13,8 @@ export function RestoreProfilePage() {
   const [downloadMessage, setDownloadMessage] = useState("");
   function download(profile: CareerEvidenceProfile) {
     try {
-      downloadTextFile(exportProfileBackup(profile), `devpersonify-${profile.username.toLowerCase()}-backup.json`, "application/json;charset=utf-8");
-      setDownloadMessage("Backup downloaded. Keep it private; it contains your career details and resume text.");
+      downloadCareerBackup(profile);
+      setDownloadMessage("Backup download started. Check your downloads. Keep it private; it contains your career details and resume text.");
     } catch { setDownloadMessage("This profile could not be downloaded. Open your career profile and try again."); }
   }
   async function restore(event: ChangeEvent<HTMLInputElement>) {
@@ -26,7 +26,7 @@ export function RestoreProfilePage() {
       if (file.size > MAX_PROFILE_BACKUP_BYTES) throw new Error("This backup is larger than 8 MB.");
       const profile = importProfileBackup(await file.text());
       if (loadCareerProfile(profile.username) && !window.confirm(`Replace the career profile for @${profile.username} in this browser?`)) return;
-      if (!saveCareerProfile(profile)) throw new Error("Your browser could not save the backup. Free some site storage and try again.");
+      if (!saveCareerProfile(profile, "Backup imported")) throw new Error("Your browser could not save the backup. Free some site storage and try again.");
       navigate(`/career/${encodeURIComponent(profile.username)}?step=preview`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The backup could not be restored.");

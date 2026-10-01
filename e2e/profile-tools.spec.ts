@@ -39,3 +39,85 @@ test("a backup restores on a new browser without GitHub and supports private Lin
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain("Private draft sentence");
   expect(externalRequests).toEqual([]);
 });
+
+test("milestone reminders and profile history recover edits without losing the working version", async ({ page }) => {
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  await page.goto("/restore");
+  await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
+  const safety = page.getByRole("region", { name: "Profile backup and history" });
+  await expect(safety.getByRole("button", { name: "Back up now" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /^(3\.\s*)?Profile$/ }).click();
+  await page.getByLabel("Professional headline", { exact: true }).fill("Senior Platform Engineer");
+  await page.getByRole("button", { name: "Compare evidence →" }).click();
+  await expect(safety.getByText(/Profile details updated. Download a backup/)).toBeVisible();
+  await safety.locator("summary").click();
+  await expect(safety.getByText("Profile details updated", { exact: true })).toBeVisible();
+  await page.reload();
+  await safety.locator("summary").click();
+  await safety.getByRole("button", { name: /^Restore Backup imported from/ }).click();
+  await safety.getByRole("button", { name: "Confirm restore", exact: true }).click();
+  await expect(safety.getByText("Profile version restored. Your previous profile is available in history.")).toBeVisible();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /^(3\.\s*)?Profile$/ }).click();
+  await expect(page.getByLabel("Professional headline", { exact: true })).toHaveValue("Platform Engineer");
+  await expect(safety.getByText(/Senior Platform Engineer ·/)).toBeVisible();
+  const backupEvent = page.waitForEvent("download");
+  await safety.getByRole("button", { name: "Back up now" }).click();
+  const backup = await backupEvent;
+  expect(JSON.parse(await readFile((await backup.path())!, "utf8")).profile.careerDirection.professionalHeadline.value).toBe("Platform Engineer");
+  await expect(safety.getByText(/Last backup download requested:.*current version/)).toBeVisible();
+  await expect(safety.getByRole("button", { name: "Dismiss backup reminder" })).toHaveCount(0);
+  await page.getByLabel("Professional headline", { exact: true }).fill("Platform Lead");
+  await page.getByRole("button", { name: "Compare evidence →" }).click();
+  await expect(safety.getByText(/newer changes need a backup/)).toBeVisible();
+  await expect(safety.getByText(/Profile details updated. Download a backup/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("resume and review milestones offer a dismissible backup reminder", async ({ page }) => {
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  await page.goto("/restore");
+  await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
+  const safety = page.getByRole("region", { name: "Profile backup and history" });
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Resume$/ }).click();
+  await page.getByLabel("Paste resume text").fill("SKILLS\nTypeScript");
+  await page.getByRole("button", { name: "Extract for review" }).click();
+  await expect(safety.getByText(/Resume added. Download a backup/)).toBeVisible();
+  await safety.getByRole("button", { name: "Dismiss backup reminder" }).click();
+  await expect(safety.getByText(/Resume added. Download a backup/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Accept item", exact: true }).click();
+  await expect(safety.getByText(/Evidence review completed. Download a backup/)).toBeVisible();
+  await safety.locator("summary").click();
+  await expect(safety.getByText("Resume added", { exact: true })).toBeVisible();
+  await expect(safety.getByText("Evidence review completed", { exact: true })).toBeVisible();
+  await safety.getByRole("button", { name: /^Restore Backup imported from/ }).click();
+  await safety.getByRole("button", { name: "Confirm restore", exact: true }).click();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Evidence profile$/ }).click();
+  await page.getByRole("button", { name: "Clear resume", exact: true }).click();
+  await expect(safety.locator("summary")).toHaveText("Profile history (0)");
+  expect(await page.evaluate(() => localStorage.getItem("devpersonify:profile-history:v1:demo"))).toBeNull();
+});
+
+test("failed autosave blocks replacing unsaved profile edits", async ({ page }) => {
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  await page.goto("/restore");
+  await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith("devpersonify:career-evidence:")) throw new DOMException("Storage full", "QuotaExceededError");
+      original.call(this, key, value);
+    };
+  });
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /^(3\.\s*)?Profile$/ }).click();
+  await page.getByLabel("Professional headline", { exact: true }).fill("Unsaved test edits");
+  const safety = page.getByRole("region", { name: "Profile backup and history" });
+  await expect(safety.getByRole("alert")).toContainText("Restoring is disabled");
+  await safety.getByRole("button", { name: "Save version", exact: true }).click();
+  await safety.locator("summary").click();
+  await expect(safety.getByRole("button", { name: /^Restore Saved manually from/ })).toBeDisabled();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Evidence profile$/ }).click();
+  await expect(page.getByLabel("Import profile backup")).toBeDisabled();
+  const downloadEvent = page.waitForEvent("download");
+  await safety.getByRole("button", { name: "Back up now" }).click();
+  expect(JSON.parse(await readFile((await (await downloadEvent).path())!, "utf8")).profile.careerDirection.professionalHeadline.value).toBe("Unsaved test edits");
+});

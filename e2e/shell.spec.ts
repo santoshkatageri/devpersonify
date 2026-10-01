@@ -382,7 +382,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(page.getByText("Potential resume opportunity").first()).toBeVisible();
   await page.getByRole("button", { name: /Open career profile/i }).click();
   await expect(page.getByRole("heading", { name: "One profile, with sources preserved." })).toBeVisible();
-  await expect(page.getByText("Platform Engineer | C# & Cloud").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "One profile, with sources preserved." }).getByText("Platform Engineer | C# & Cloud", { exact: true })).toBeVisible();
   await expect(page.getByText(/Resume \+ GitHub/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-4-career-profile-desktop.png", fullPage: true });
@@ -390,7 +390,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "One profile, with sources preserved." })).toBeVisible();
-  await expect(page.getByText("Platform Engineer | C# & Cloud").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "One profile, with sources preserved." }).getByText("Platform Engineer | C# & Cloud", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "showcase-project", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "showcase-project" })).toBeVisible();
   await page.getByRole("link", { name: /Back to repositories/i }).first().click();

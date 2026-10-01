@@ -20,13 +20,14 @@ const supportedMimeTypes: Record<string, string[]> = {
   txt: ["text/plain", "application/octet-stream"],
 };
 const headingMap: Array<[RegExp, CareerSection]> = [
-  [/^(work\s+)?experience|employment|professional experience$/i, "experience"],
-  [/^education|academic background$/i, "education"],
-  [/^(technical\s+)?skills|technologies|tech stack$/i, "skills"],
-  [/^(selected\s+)?projects|personal projects$/i, "projects"],
-  [/^certifications?|licenses?$/i, "certifications"],
-  [/^achievements?|awards?|honors?$/i, "achievements"],
-  [/^(professional\s+)?links|profiles|contact$/i, "professionalLinks"],
+  [/^(?:(?:work|professional)\s+experience|experience|employment|employment history|work history)$/i, "experience"],
+  [/^(?:education|academic background)$/i, "education"],
+  [/^(?:(?:technical\s+)?skills|technologies|tech stack)$/i, "skills"],
+  [/^(?:(?:selected|personal)\s+projects|projects)$/i, "projects"],
+  [/^(?:certifications?|licenses?)$/i, "certifications"],
+  [/^(?:(?:key\s+)?achievements?|awards?|honors?|accomplishments)$/i, "achievements"],
+  [/^(?:(?:professional\s+)?links|profiles|contact)$/i, "professionalLinks"],
+  [/^(?:(?:professional\s+)?summary|profile|objective|focus areas|references|interests|languages)$/i, "other"],
 ];
 
 function extension(fileName: string): string {
@@ -43,19 +44,78 @@ function ensureText(text: string): string {
   return normalized;
 }
 
+type PdfTextItem = { str: string; transform: number[]; width: number; height: number; hasEOL: boolean };
+type PdfColumn = { left: number; text: string };
+
+/** Keep the PDF's content order: sorting every item by Y interleaves resume columns. */
+export function pdfTextColumns(items: Array<PdfTextItem | object>, pageWidth: number): PdfColumn[] {
+  const columns: PdfTextItem[][] = [[]];
+  let previous: PdfTextItem | undefined;
+  for (const item of items) {
+    if (!("str" in item) || !("transform" in item)) continue;
+    const textItem = item as PdfTextItem;
+    if (textItem.str.trim()) {
+      // A large jump up and right marks a separately painted sidebar/column.
+      if (previous && textItem.transform[5]! - previous.transform[5]! > Math.max(40, previous.height * 4)
+        && textItem.transform[4]! - previous.transform[4]! > pageWidth * 0.2) columns.push([]);
+      previous = textItem;
+    }
+    columns[columns.length - 1]!.push(textItem);
+  }
+  return columns.filter((column) => column.some((item) => item.str.trim())).map((column) => {
+    const left = Math.min(...column.filter((item) => item.str.trim()).map((item) => item.transform[4]!));
+    const lines: Array<{ text: string; x: number; y: number; height: number }> = [];
+    let line: typeof lines[number] | undefined;
+    let right = 0;
+    const flush = () => { if (line?.text.trim()) lines.push(line); line = undefined; };
+    for (const item of column) {
+      const x = item.transform[4]!;
+      const y = item.transform[5]!;
+      if (item.str.trim()) {
+        if (line && Math.abs(y - line.y) > Math.max(item.height, line.height, 1) * 0.65) flush();
+        if (!line) line = { text: "", x, y, height: item.height };
+        const needsSpace = line.text && !/\s$/.test(line.text) && !/^\s/.test(item.str)
+          && x - right > Math.max(item.height, line.height, 1) * 0.12;
+        line.text += (needsSpace ? " " : "") + item.str;
+        line.height = Math.max(line.height, item.height);
+        right = x + item.width;
+      } else if (line && item.str) line.text += " ";
+      if (item.hasEOL) flush();
+    }
+    flush();
+    return { left, text: lines.map((current, index) => {
+      const before = lines[index - 1];
+      const paragraphBreak = before && before.y - current.y > Math.max(before.height, current.height, 1) * 1.7
+        && current.x <= left + Math.max(current.height, 1) * 0.4;
+      return (paragraphBreak ? "\n" : "") + current.text.trim();
+    }).join("\n") };
+  });
+}
+
+export function joinPdfPages(pages: PdfColumn[][]): string {
+  // When the same two columns continue across pages, finish each column first.
+  // This keeps a main-column job from being appended to a sidebar's education.
+  const first = pages[0];
+  const continuedColumns = first?.length === 2 && pages.every((page) => page.length === 2
+    && page.every((column, index) => Math.abs(column.left - first[index]!.left) < 20));
+  return continuedColumns
+    ? first.map((_, index) => pages.map((page) => page[index]!.text).join("\n")).join("\n\n")
+    : pages.map((page) => page.map((column) => column.text).join("\n\n")).join("\n\n");
+}
+
 async function parsePdf(data: Uint8Array): Promise<string> {
   try {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     if (typeof Worker !== "undefined") pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
     const document = await pdfjs.getDocument({ data, isEvalSupported: false, useWorkerFetch: false }).promise;
-    const pages: string[] = [];
+    const pages: PdfColumn[][] = [];
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      pages.push(content.items.map((item) => "str" in item ? item.str : "").filter(Boolean).join(" "));
+      pages.push(pdfTextColumns(content.items, page.getViewport({ scale: 1 }).width));
     }
     await document.destroy();
-    return ensureText(pages.join("\n\n"));
+    return ensureText(joinPdfPages(pages));
   } catch (error) {
     if (error instanceof ResumeProcessingError) throw error;
     throw new ResumeProcessingError("MALFORMED_FILE", "The PDF could not be read locally. Use the paste-text fallback.", { cause: error });
@@ -124,8 +184,10 @@ function splitBlocks(lines: string[]): string[][] {
   return blocks;
 }
 
+const dateRangePattern = /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(19|20)\d{2}\s*(?:-|–|—|to)\s*(((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(19|20)\d{2}|present|current)/i;
+
 function dateRange(value: string): { startDate: string; endDate: string } {
-  const match = value.match(/((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(19|20)\d{2}\s*(?:-|–|—|to)\s*(((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(19|20)\d{2}|present|current)/i);
+  const match = value.match(dateRangePattern);
   if (!match) return { startDate: "", endDate: "" };
   const parts = match[0].split(/\s*(?:-|–|—|to)\s*/i);
   return { startDate: parts[0] ?? "", endDate: parts[1] ?? "" };
@@ -164,7 +226,10 @@ export function extractResumeItems(text: string, sourceId: string, now = new Dat
       items.push(reviewItem(section, sourceId, now, {
         title: block[0] ?? "",
         organization: section === "experience" || section === "education" ? block[1] ?? "" : "",
-        description: section === "experience" || section === "education" ? block.slice(2).filter((line) => !dateRange(line).startDate).join("\n") : block.slice(1).join("\n"),
+        description: section === "experience" || section === "education" ? block.slice(2).filter((line) => {
+          const rangeMatch = line.match(dateRangePattern);
+          return !rangeMatch || rangeMatch[0].trim() !== line.trim();
+        }).join("\n") : block.slice(1).join("\n"),
         startDate: range.startDate, endDate: range.endDate, url,
       }));
     }

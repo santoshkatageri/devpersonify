@@ -1,14 +1,30 @@
 import { CAREER_EVIDENCE_SCHEMA_VERSION, type CareerEvidenceProfile } from "../../domain/career-evidence-profile";
 
+import { clearProfileBackupStatus, clearProfileHistory, saveProfileVersion } from "./profile-history";
+
 const PREFIX = "devpersonify:career-evidence:v1:";
 
 function key(username: string): string {
   return `${PREFIX}${username.toLowerCase()}`;
 }
 
-export function saveCareerProfile(profile: CareerEvidenceProfile): boolean {
+export function saveCareerProfile(profile: CareerEvidenceProfile, milestone?: string): boolean {
   try {
-    localStorage.setItem(key(profile.username), JSON.stringify(profile));
+    const previous = loadCareerProfile(profile.username);
+    // Clearing evidence must also remove copies retained in history.
+    if (!milestone && previous && ((previous.resumeEvidence && !profile.resumeEvidence) || (previous.githubEvidence.profileUrl && !profile.githubEvidence.profileUrl))) {
+      clearProfileHistory(profile.username);
+      clearProfileBackupStatus(profile.username);
+    }
+    if (milestone && previous && !saveProfileVersion(previous, "Before replacement")) return false;
+    try { localStorage.setItem(key(profile.username), JSON.stringify(profile)); }
+    catch {
+      // Working data takes priority over optional history when storage is full.
+      if (milestone) return false;
+      clearProfileHistory(profile.username);
+      localStorage.setItem(key(profile.username), JSON.stringify(profile));
+    }
+    if (milestone) saveProfileVersion(profile, milestone);
     return true;
   } catch {
     return false;
@@ -32,6 +48,8 @@ export function loadCareerProfile(username: string): CareerEvidenceProfile | nul
 
 export function clearCareerProfileStorage(username: string): void {
   localStorage.removeItem(key(username));
+  clearProfileHistory(username);
+  clearProfileBackupStatus(username);
 }
 
 export function clearGitHubCareerDataStorage(username: string): void {
@@ -40,7 +58,7 @@ export function clearGitHubCareerDataStorage(username: string): void {
 }
 
 export function clearAllCareerDataStorage(username: string): void {
-  localStorage.removeItem(key(username));
+  clearCareerProfileStorage(username);
   localStorage.removeItem(`devpersonify:preparation:v1:${username.toLowerCase()}`);
   localStorage.removeItem(`devpersonify:audit:v1:${username.toLowerCase()}`);
   localStorage.removeItem(`devpersonify:github-readme:v1:${username.toLowerCase()}`);

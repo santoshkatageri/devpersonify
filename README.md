@@ -4,9 +4,12 @@
 
 DevPersonify is a developer career evidence platform. V1 turns public GitHub data and user-supplied professional information into explainable repository recommendations, a canonical developer profile, and deterministic career outputs—without runtime AI.
 
+
+Career profiles show backup reminders after resume import, evidence review, and profile-stage milestones. Local history retains up to five recent versions (fewer when size or storage limits apply), with manual checkpoints and restore. Before replacing a profile, the app retains the current version or stops the replacement if it cannot do so. Backups contain the current profile only. History and backup status are browser-local; clearing evidence also removes retained history.
+
 ## Current status
 
-Launch update: profile backups can be downloaded from Career Profile and restored on a new browser at `/restore`. Manual LinkedIn review at `/career/:username/linkedin-review` compares pasted profile wording with stored evidence without accessing LinkedIn or retaining pasted text. Saved career profiles remain usable without a new GitHub request; imported GitHub evidence is preserved until the user clears it.
+Launch update: profile backups can be downloaded from Career Profile or Backup & restore and restored on a new browser at `/restore`. Manual LinkedIn review at `/career/:username/linkedin-review` compares pasted profile wording with stored evidence without accessing LinkedIn or retaining pasted text. Saved career profiles remain usable without a new GitHub request; imported GitHub evidence is preserved until the user clears it.
 
 Feedback uses the published [DevPersonify Tally form](https://tally.so/r/PdVrRd). Tally’s native Google Sheets connection is configured separately in Tally; see [setup instructions](docs/feedback-tally.md). Override `VITE_TALLY_FEEDBACK_FORM_ID` at build time to select another form, or explicitly set it empty to use local browser drafts without delivery. Bugs go to public GitHub Issues. No Supabase or Google credentials are needed in this app.
 
