@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { SiteLayout } from "./components/site-layout";
 import { AuditPage } from "./pages/audit-page";
+import { GuidePage } from "./pages/guide-page";
 import { HomePage } from "./pages/home-page";
 import { MethodologyPage, NotFoundPage, PrivacyPage } from "./pages/information-pages";
 import { PreparationPage } from "./pages/preparation-page";
@@ -27,6 +28,7 @@ function createAppRouter() {
         { path: "career/:username/resume", element: <LatexResumePage /> },
         { path: "career/:username/readme", element: <GithubReadmePage /> },
         { path: "career/:username/linkedin-review", element: <LinkedInReviewPage /> },
+        { path: "guide", element: <GuidePage /> },
         { path: "methodology", element: <MethodologyPage /> },
         { path: "privacy", element: <PrivacyPage /> },
         { path: "restore", element: <RestoreProfilePage /> },

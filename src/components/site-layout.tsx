@@ -7,7 +7,7 @@ import { WorkflowNavigation } from "./workflow-navigation";
 
 const navigation = [
   { label: "How it works", href: "/#how-it-works" },
-  { label: "What you get", href: "/#features" },
+  { label: "User guide", href: "/guide" },
   { label: "Methodology", href: "/methodology" },
 ];
 

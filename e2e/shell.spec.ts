@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 function failOnBrowserErrors(page: Page) {
@@ -82,7 +82,10 @@ test("refined landing page is clear, responsive, and console-clean", async ({ pa
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-landing-desktop.png", fullPage: true });
   else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-landing-mobile.png", fullPage: true });
-  await page.goto("/audit");
+  await page.getByRole("link", { name: "Read the user guide: inputs, outputs, and limits →", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "What you provide. What you get." })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await page.getByRole("link", { name: "Start with GitHub audit →", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "See what your public work communicates." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start audit" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -348,7 +351,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   trackingResume = true;
   const upload = page.locator('input[type="file"]');
   await upload.setInputFiles({ name: "resume.rtf", mimeType: "application/rtf", buffer: Buffer.from("unsupported") });
-  await expect(page.getByRole("alert")).toContainText("Supported resume files are PDF, DOCX, and UTF-8 TXT");
+  await expect(page.getByRole("alert")).toContainText("Use a Word (.docx) resume for best results");
   await upload.setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: Buffer.from("SKILLS\nTypeScript") });
   await expect(page.getByRole("heading", { name: "Review extracted evidence." })).toBeVisible();
   await page.getByRole("button", { name: /Resume$/ }).click();
@@ -697,5 +700,38 @@ test("accepted review corrections and removals update saved resume outputs witho
   await page.goto("/career/demo/readme");
   await page.getByRole("button", { name: "Markdown source", exact: true }).click();
   await expect(page.getByLabel("Generated career README Markdown source")).not.toContainText("Azure");
+  expect(errors).toEqual([]);
+});
+
+
+test("recommended Word input preserves separate roles, list detail and dates through export locally", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/career/demo");
+  await expect(page.getByRole("heading", { name: "Word (.docx) recommended", exact: true })).toBeVisible();
+  const requests: string[] = [];
+  page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173")) requests.push(request.url()); });
+  const paragraph = (text: string, style = "") => `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ""}<w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const bullet = (text: string) => `<w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const bytes = zipSync({ "word/document.xml": strToU8(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph("EXPERIENCE")}${paragraph("Senior Engineer 2022 – Present", "Heading2")}${paragraph("Example Company")}${bullet("Built services across multiple regions.")}${bullet("Reduced deployment failures.")}${paragraph("Engineer", "Heading2")}${paragraph("Earlier Company")}${paragraph("2020 - 2022")}${bullet("Built internal tools.")}${paragraph("SKILLS")}${paragraph("Go, Terraform")}</w:body></w:document>`) });
+  await page.locator('input[type="file"]').setInputFiles({ name: "synthetic-resume.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from(bytes) });
+  await expect(page.getByRole("heading", { name: "Review extracted evidence.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Experience 2", exact: true })).toBeVisible();
+  const role = page.locator("article").filter({ has: page.locator('input[value="Senior Engineer"]') });
+  await expect(role.getByLabel("Organization")).toHaveValue("Example Company");
+  await expect(role.getByLabel("Start date")).toHaveValue("2022");
+  await expect(role.getByLabel("End date")).toHaveValue("Present");
+  await expect(role.getByLabel("Description")).toHaveValue("• Built services across multiple regions.\n• Reduced deployment failures.");
+  await role.getByRole("button", { name: "Accept item", exact: true }).click();
+  await page.goto("/career/demo/resume");
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("button", { name: "LaTeX source", exact: true }).click();
+  const source = page.getByLabel("Generated LaTeX source");
+  await expect(source).toContainText("Senior Engineer");
+  await expect(source).toContainText("Example Company");
+  await expect(source).toContainText("2022 -- Present");
+  await expect(source).toContainText("Built services across multiple regions.");
+  await expect(source).not.toContainText("Earlier Company");
+  expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });

@@ -1,4 +1,4 @@
-import { strFromU8, unzipSync } from "fflate";
+import { readWordParagraphs, type WordParagraph } from "./docx-text";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import type { CareerSection, ResumeDocumentEvidence, ResumeReviewItem } from "../../domain/career-evidence-profile";
 
@@ -124,15 +124,42 @@ async function parsePdf(data: Uint8Array): Promise<string> {
 
 function parseDocx(data: Uint8Array): string {
   try {
-    const files = unzipSync(data);
-    const documentXml = files["word/document.xml"];
-    if (!documentXml) throw new Error("Missing document.xml");
-    const xml = new DOMParser().parseFromString(strFromU8(documentXml), "application/xml");
-    if (xml.querySelector("parsererror")) throw new Error("Invalid document XML");
-    const paragraphs = [...xml.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "p")].map((paragraph) =>
-      [...paragraph.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "t")].map((node) => node.textContent ?? "").join(""),
-    );
-    return ensureText(paragraphs.join("\n"));
+    const paragraphs = readWordParagraphs(data);
+    const output: string[] = [];
+    let section: CareerSection = "other";
+    let block: WordParagraph[] = [];
+    const flush = () => {
+      if (!block.length) return;
+      if (section === "experience" || section === "education") {
+        // Keep metadata separate from descriptions, including dates beside a
+        // title in a tab stop or a table cell.
+        const dates: string[] = [];
+        const lines = block.flatMap((paragraph, index) => {
+          if (index > 2 || paragraph.list) return [paragraph.text];
+          const match = paragraph.text.match(dateRangePattern);
+          if (!match || !(match[0].trim() === paragraph.text.trim() || (index < 2 && paragraph.text.length < 180 && paragraph.text.trim().endsWith(match[0])))) return [paragraph.text];
+          dates.push(match[0]);
+          const text = paragraph.text.replace(match[0], "").replace(/^[\s|–—-]+|[\s|–—-]+$/g, "");
+          return text ? [text] : [];
+        });
+        output.push(...lines.slice(0, 2), ...dates, ...lines.slice(2), "");
+      } else output.push(...block.map((item) => item.text), "");
+      block = [];
+    };
+    paragraphs.forEach((paragraph, index) => {
+      const heading = sectionForHeading(paragraph.text);
+      if (heading) { flush(); section = heading; output.push(paragraph.text); return; }
+      if (!paragraph.text) { flush(); return; }
+      const hasDescription = block.some((item) => item.list);
+      const hasDates = block.some((item) => dateRangePattern.test(item.text));
+      const next = paragraphs[index + 1];
+      const datedEntry = dateRangePattern.test(paragraph.text) || Boolean(next && !next.list && dateRangePattern.test(next.text));
+      const recordSection = ["experience", "education", "projects", "certifications", "achievements"].includes(section);
+      if (recordSection && block.length && !paragraph.list && (paragraph.entryHeading || ((hasDescription || hasDates) && (datedEntry || (paragraph.bold && hasDescription))))) flush();
+      block.push(paragraph);
+    });
+    flush();
+    return ensureText(output.join("\n"));
   } catch (error) {
     if (error instanceof ResumeProcessingError) throw error;
     throw new ResumeProcessingError("MALFORMED_FILE", "The DOCX file could not be read locally. Use the paste-text fallback.");
@@ -150,7 +177,7 @@ function parseTxt(data: Uint8Array): string {
 
 export async function processResumeFile(file: File, now = new Date().toISOString()): Promise<{ document: ResumeDocumentEvidence; items: ResumeReviewItem[] }> {
   const fileExtension = extension(file.name);
-  if (!supportedExtensions.has(fileExtension) || (file.type && !supportedMimeTypes[fileExtension]?.includes(file.type.toLowerCase()))) throw new ResumeProcessingError("UNSUPPORTED_FILE", "Supported resume files are PDF, DOCX, and UTF-8 TXT.");
+  if (!supportedExtensions.has(fileExtension) || (file.type && !supportedMimeTypes[fileExtension]?.includes(file.type.toLowerCase()))) throw new ResumeProcessingError("UNSUPPORTED_FILE", fileExtension === "doc" ? "Older .doc files are not supported. Save your Word resume as .docx and try again." : "Use a Word (.docx) resume for best results. PDF and UTF-8 TXT are also supported.");
   if (file.size > MAX_RESUME_FILE_BYTES) throw new ResumeProcessingError("OVERSIZED_FILE", "Resume files must be 5 MB or smaller.");
   if (file.size === 0) throw new ResumeProcessingError("EMPTY_DOCUMENT", "The selected file is empty. Choose another file or paste the resume text.");
   const data = new Uint8Array(await file.arrayBuffer());
@@ -221,12 +248,14 @@ export function extractResumeItems(text: string, sourceId: string, now = new Dat
     for (const block of blocks) {
       const combined = block.join("\n").trim();
       if (!combined) continue;
-      const range = dateRange(combined);
+      const isDateLine = (line: string) => line.match(dateRangePattern)?.[0].trim() === line.trim();
+      const range = dateRange(block.filter((line, index) => (index < 2 && !/^[•●▪◦*-]\s/.test(line)) || isDateLine(line)).join("\n"));
+      const organization = (section === "experience" || section === "education") && block[1] && !/^[•●▪◦*-]\s/.test(block[1]) && !isDateLine(block[1]) ? block[1] : "";
       const url = combined.match(/https?:\/\/[^\s)]+/i)?.[0] ?? (section === "professionalLinks" ? combined.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)?.[0] ?? "" : "");
       items.push(reviewItem(section, sourceId, now, {
         title: (block[0] ?? "").replace(/^[•●▪◦*-]\s*/, ""),
-        organization: section === "experience" || section === "education" ? (block[1] ?? "").replace(/^[•●▪◦*-]\s*/, "") : "",
-        description: section === "experience" || section === "education" ? block.slice(2).filter((line) => {
+        organization,
+        description: section === "experience" || section === "education" ? block.slice(organization ? 2 : 1).filter((line) => {
           const rangeMatch = line.match(dateRangePattern);
           return !rangeMatch || rangeMatch[0].trim() !== line.trim();
         }).join("\n") : block.slice(1).join("\n"),
