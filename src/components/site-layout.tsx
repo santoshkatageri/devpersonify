@@ -28,7 +28,7 @@ export function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const saved = savedWorkflow();
-  const contextualAction = !workflowContextFromPath(location.pathname) && saved ? { label: "Continue saved session", to: saved.to } : contextualHeaderAction(location.pathname);
+  const contextualAction = !workflowContextFromPath(location.pathname) && saved ? null : contextualHeaderAction(location.pathname);
   useEffect(() => { rememberWorkflow(location.pathname + location.search); }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -58,13 +58,13 @@ export function SiteLayout() {
                 {item.label}
               </a>
             ))}
-            <Link
+            {contextualAction ? <Link
               to={contextualAction.to}
               className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
             >
               {contextualAction.label}
               <ArrowRightIcon className="h-4 w-4" />
-            </Link>
+            </Link> : null}
           </nav>
           <button
             type="button"
@@ -85,10 +85,10 @@ export function SiteLayout() {
                   {item.label}
                 </a>
               ))}
-              <Link to={contextualAction.to} className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
+              {contextualAction ? <Link to={contextualAction.to} className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
                 {contextualAction.label}
                 <ArrowRightIcon className="h-4 w-4" />
-              </Link>
+              </Link> : null}
             </div>
           </nav>
         ) : null}
