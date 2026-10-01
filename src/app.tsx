@@ -3,7 +3,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { SiteLayout } from "./components/site-layout";
 import { AuditPage } from "./pages/audit-page";
 import { GuidePage } from "./pages/guide-page";
-import { HomePage } from "./pages/home-page";
+import { HomePage, LandingPage } from "./pages/home-page";
 import { MethodologyPage, NotFoundPage, PrivacyPage } from "./pages/information-pages";
 import { PreparationPage } from "./pages/preparation-page";
 import { CareerProfilePage } from "./pages/career-profile-page";
@@ -20,6 +20,7 @@ function createAppRouter() {
       element: <SiteLayout />,
       children: [
         { index: true, element: <HomePage /> },
+        { path: "about", element: <LandingPage /> },
         { path: "audit", element: <AuditPage /> },
         { path: "audit/:username", element: <AuditPage /> },
         { path: "audit/:username/repositories/:owner/:repo", element: <RepositoryDetailPage /> },

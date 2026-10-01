@@ -756,6 +756,11 @@ test("saved workflow remains reachable from home, information pages, and after r
   }
   await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true }).click();
   await page.reload();
+  await expect(page.getByRole("heading", { name: "Welcome back, @demo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your work already tells a story/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Open audit →", exact: true })).toHaveAttribute("href", "/audit/demo");
+  await expectNoHorizontalOverflow(page);
   await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
   await page.getByRole("link", { name: "Build career profile →", exact: true }).click();

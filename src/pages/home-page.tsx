@@ -4,6 +4,7 @@ import { ButtonLink, SectionHeading } from "../components/ui";
 import { CheckIcon, FileIcon, GitBranchIcon, LayersIcon, SearchIcon, ShieldIcon, SparkIcon } from "../components/icons";
 import { openFeedbackPanel } from "../features/feedback/feedback";
 
+import { WorkspaceHomePage } from "./workspace-home-page";
 import { savedWorkflow } from "../components/saved-workflow";
 import { tallyFeedbackFormId } from "../features/feedback/tally-feedback";
 
@@ -46,6 +47,11 @@ function AuditPreview() {
 }
 
 export function HomePage() {
+  const session = savedWorkflow();
+  return session ? <WorkspaceHomePage key={session.username} session={session} /> : <LandingPage />;
+}
+
+export function LandingPage() {
   const context = savedWorkflow();
   const username = context ? encodeURIComponent(context.username) : "";
   const preparationRoute = username ? `/audit/${username}/prepare` : "/audit";

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { createCareerEvidenceProfile, updateProfileField } from "../src/features/career-profile/career-profile";
+import AxeBuilder from "@axe-core/playwright";
+import { addManualReviewItem, createCareerEvidenceProfile, updateProfileField } from "../src/features/career-profile/career-profile";
 import { exportProfileBackup } from "../src/features/career-profile/profile-backup";
 import { createPreparationState } from "../src/features/github-preparation/preparation";
 import { calculateAuditSummary } from "../src/features/github-audit/scoring-engine";
@@ -120,4 +121,40 @@ test("failed autosave blocks replacing unsaved profile edits", async ({ page }) 
   const downloadEvent = page.waitForEvent("download");
   await safety.getByRole("button", { name: "Back up now" }).click();
   expect(JSON.parse(await readFile((await (await downloadEvent).path())!, "utf8")).profile.careerDirection.professionalHeadline.value).toBe("Unsaved test edits");
+});
+
+
+test("restored profile populates Home, keeps backups usable and opens drafts without GitHub", async ({ page }) => {
+  const githubRequests: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("api.github.com")) githubRequests.push(request.url()); });
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  await page.goto("/restore");
+  // An old tab marker must not override the newly restored account.
+  await page.evaluate(() => {
+    sessionStorage.setItem("devpersonify:last-workflow:v1", "/career/previous?step=review");
+    localStorage.setItem("devpersonify:last-workflow:v1", "/career/previous?step=review");
+  });
+  await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(addManualReviewItem(profile, "experience", now))) });
+  await expect(page).toHaveURL(/\/career\/demo\?step=preview/);
+  await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back, @demo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review 1 evidence item" })).toBeVisible();
+  await expect(page.getByText("Platform Engineer", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Analyze my GitHub", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "View saved evidence →", exact: true })).toHaveAttribute("href", "/career/demo?step=preview");
+  const safety = page.getByRole("region", { name: "Profile backup and history" });
+  const downloadEvent = page.waitForEvent("download");
+  await safety.getByRole("button", { name: "Back up now" }).click();
+  const backup = JSON.parse(await readFile((await (await downloadEvent).path())!, "utf8"));
+  expect(backup.profile.resumeReview).toHaveLength(1);
+  await expect(safety.getByText(/current version/)).toBeVisible();
+  const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(accessibility.violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Review 1 evidence item" })).toBeVisible();
+  await page.getByRole("link", { name: "Open Resume Studio →", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /DevPersonify Classic/ })).toBeVisible();
+  expect(githubRequests).toEqual([]);
 });

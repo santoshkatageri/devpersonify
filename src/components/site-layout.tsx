@@ -8,7 +8,7 @@ import { workflowContextFromPath } from "./workflow-context";
 import { WorkflowNavigation } from "./workflow-navigation";
 
 const navigation = [
-  { label: "How it works", href: "/#how-it-works" },
+  { label: "How it works", href: "/about#how-it-works" },
   { label: "User guide", href: "/guide" },
   { label: "Methodology", href: "/methodology" },
 ];

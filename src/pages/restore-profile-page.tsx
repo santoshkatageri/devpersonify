@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { importProfileBackup, MAX_PROFILE_BACKUP_BYTES } from "../features/career-profile/profile-backup";
 import { listSavedCareerProfiles, loadCareerProfile, saveCareerProfile } from "../features/career-profile/career-profile-storage";
 
+import { rememberWorkflow } from "../components/saved-workflow";
 import { downloadCareerBackup } from "../features/career-profile/profile-history";
 import type { CareerEvidenceProfile } from "../domain/career-evidence-profile";
 
@@ -27,6 +28,7 @@ export function RestoreProfilePage() {
       const profile = importProfileBackup(await file.text());
       if (loadCareerProfile(profile.username) && !window.confirm(`Replace the career profile for @${profile.username} in this browser?`)) return;
       if (!saveCareerProfile(profile, "Backup imported")) throw new Error("Your browser could not save the backup. Free some site storage and try again.");
+      rememberWorkflow(`/career/${encodeURIComponent(profile.username)}?step=preview`);
       navigate(`/career/${encodeURIComponent(profile.username)}?step=preview`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The backup could not be restored.");

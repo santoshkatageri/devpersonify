@@ -7,7 +7,7 @@ export function WorkflowNavigation() {
   const current = workflowContextFromPath(location.pathname);
   const saved = savedWorkflow();
   const context = current ?? saved;
-  if (!context) return null;
+  if (!context || (location.pathname === "/" && saved)) return null;
   const username = encodeURIComponent(context.username);
   const careerAvailable = (() => { try { return Boolean(localStorage.getItem(`devpersonify:career-evidence:v1:${context.username.toLowerCase()}`)); } catch { return false; } })();
   const steps: Array<{ key: WorkflowStage; label: string; to: string; available: boolean }> = [
