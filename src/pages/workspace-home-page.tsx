@@ -50,7 +50,7 @@ export function WorkspaceHomePage({ session }: { session: SavedWorkflow }) {
     { title: "GitHub projects", detail: audit ? `${audit.count} repositories in saved audit · ${selected} selected for portfolio` : `${repositories.length} repositories in career evidence · ${selected} selected for portfolio`, action: audit ? "Open GitHub profile" : "View saved evidence", to: audit ? prepare : `${career}?step=preview` },
     { title: "README draft", detail: "Review and download Markdown for your GitHub profile", action: "Build README", to: profile ? `${career}/readme` : `${prepare}?step=readme` },
     { title: "Resume draft", detail: "Choose content and download Word or LaTeX", action: profile ? "Open Resume Studio" : "Build career profile first", to: profile ? `${career}/resume` : career },
-    ...(profile ? [{ title: "LinkedIn review", detail: "Compare pasted profile text with your saved career evidence", action: "Review LinkedIn", to: `${career}/linkedin-review` }] : []),
+    ...(profile ? [{ title: "LinkedIn review", detail: "Review 10 profile sections with your saved evidence and a practical action plan", action: "Review LinkedIn", to: `${career}/linkedin-review` }] : []),
   ];
   const metrics = [
     { value: audit?.count ?? repositories.length, label: "Repositories", detail: audit ? "In your saved audit" : "In your career evidence", icon: GitBranchIcon, color: "text-cobalt-700 bg-cobalt-50" },

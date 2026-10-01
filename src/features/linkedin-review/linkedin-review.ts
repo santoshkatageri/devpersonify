@@ -1,7 +1,7 @@
 import type { CareerEvidenceProfile } from "../../domain/career-evidence-profile";
 
 export interface LinkedInReviewItem {
-  kind: "headline" | "summary" | "experience" | "skill" | "project" | "link";
+  kind: "headline" | "summary" | "experience" | "skill" | "project" | "link" | "education" | "certification";
   label: string;
   found: boolean;
 }
@@ -16,9 +16,11 @@ export function reviewLinkedInText(profile: CareerEvidenceProfile, pastedText: s
     { kind: "headline", label: profile.careerDirection.professionalHeadline?.value ?? "" },
     { kind: "summary", label: profile.careerDirection.shortIntroduction?.value ?? "" },
     ...profile.experience.map((item) => ({ kind: "experience" as const, label: item.title })),
+    ...(profile.education ?? []).flatMap((item) => [item.title, item.organization ?? ""].map((label) => ({ kind: "education" as const, label }))),
+    ...(profile.certifications ?? []).map((item) => ({ kind: "certification" as const, label: item.title })),
     ...profile.skills.map((item) => ({ kind: "skill" as const, label: item.name })),
     ...profile.projects.map((item) => ({ kind: "project" as const, label: item.title })),
-    ...profile.githubEvidence.repositories.map((item) => ({ kind: "project" as const, label: item.name })),
+    ...profile.githubEvidence.repositories.filter((item) => item.selectedForPortfolio || item.selectedForShowcase).map((item) => ({ kind: "project" as const, label: item.name })),
     ...[profile.identity.website?.value, ...profile.professionalLinks.map((item) => item.url)].filter((value): value is string => Boolean(value)).map((label) => ({ kind: "link" as const, label })),
   ];
   const seen = new Set<string>();

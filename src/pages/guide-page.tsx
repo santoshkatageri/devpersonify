@@ -4,7 +4,7 @@ const steps = [
   { title: "Start with your GitHub", you: "Enter your GitHub username or profile URL. No account, password, or access token is needed.", service: "Reads your public profile and repositories, then explains portfolio signals and recommendations.", next: "Review the reasons. A repository score describes public presentation, not your engineering ability." },
   { title: "Choose your projects", you: "Select Portfolio for the repositories you want to include, arrange them, and add your headline, focus, and contact details.", service: "Carries your selected projects and entered details into a career profile or a GitHub README draft.", next: "Selections are yours. If you change preparation later, use Update from GitHub preparation in your career profile." },
   { title: "Add and review your resume", you: "Use your original Word (.docx) resume, up to 5 MB. Prefer standard headings such as Experience, Education, Skills, and Projects. Older .doc files must be saved as .docx. PDF, TXT, and pasted text are fallbacks.", service: "Reads document text, paragraphs, lists, and table content into editable review items in this browser.", next: "Check each role, employer, date, skill, and description. Correct, remove, or accept each item. Complex layouts can merge or split entries; pending items stay out of downloads." },
-  { title: "Build and use your outputs", you: "Add any missing context, select the evidence to include, and review the preview before downloading.", service: "Creates a GitHub README (.md), a Word resume (.docx), and LaTeX source (.tex). It can also compare pasted LinkedIn text with your reviewed profile.", next: "Publish the README yourself. Edit or export Word to PDF in your document editor; compile .tex in a LaTeX editor. Check the final document before sharing it." },
+  { title: "Build and use your outputs", you: "Add any missing context, select the evidence to include, and review the preview before downloading.", service: "Creates a GitHub README (.md), a Word resume (.docx), and LaTeX source (.tex). It also reviews pasted LinkedIn sections against your saved profile and offers an action plan.", next: "Publish the README yourself. Edit or export Word to PDF in your document editor; compile .tex in a LaTeX editor. Check the final document before sharing it." },
 ];
 
 export function GuidePage() {
@@ -32,7 +32,7 @@ export function GuidePage() {
       <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-6 text-slate-600">
         <li>GitHub access is public and read-only. Private work is unavailable, and repository code is not assessed for correctness.</li>
         <li>Resume extraction suggests structure. It does not verify employment, qualifications, achievements, or claims. Image-only PDFs need text supplied separately.</li>
-        <li>LinkedIn review requires pasted text. It checks phrases, cannot read your live LinkedIn profile, and does not post changes.</li>
+        <li>LinkedIn review accepts a username or URL to open your profile, then requires pasted text. Use Quick paste or Guided sections for headline, About, experience, education, skills, endorsements, Featured, posts, certifications, and contact links. It checks wording and offers guidance; it cannot fetch a live profile, verify endorsements, assess photos, or publish changes. Pasted text is not saved.</li>
         <li>Downloads use the information you select and provide. There is no automatic publishing, job application submission, ATS certification, or hiring-outcome guarantee.</li>
       </ul>
     </section>
