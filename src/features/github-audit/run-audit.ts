@@ -6,6 +6,7 @@ import { calculateAuditSummary, scoreRepository, type AuditSummary, type ScoredR
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const CACHE_PREFIX = "devpersonify:audit:v1:";
 const MAX_AUTOMATIC_README_CHECKS = 6;
+const pendingReadmeChecks = new Map<string, Promise<GitHubAudit>>();
 
 interface CachedAudit {
   savedAt: string;
@@ -65,15 +66,33 @@ function buildAudit(cache: CachedAudit, fromCache: boolean): GitHubAudit {
 }
 
 export async function enrichRepositoryInAudit(audit: GitHubAudit, repositoryId: string, signal?: AbortSignal): Promise<GitHubAudit> {
-  const target = audit.repositories.find(({ repository }) => repository.id === repositoryId)?.repository;
-  if (!target || target.hasReadme !== undefined) return audit;
-  const hasReadme = await fetchReadmePresence(target, signal);
-  if (hasReadme === undefined) return audit;
-  const normalizedRepositories = audit.repositories.map(({ repository }) => repository.id === repositoryId ? { ...repository, hasReadme } : repository);
-  const repositories = normalizedRepositories.map((repository) => ({ repository, result: scoreRepository(repository, audit.auditAt) }));
-  const updated = { ...audit, repositories, summary: calculateAuditSummary(repositories, audit.auditAt) };
-  writeCache(audit.user.login, { savedAt: audit.auditAt, user: audit.user, repositories: normalizedRepositories, warnings: audit.warnings, ...(audit.rateLimit ? { rateLimit: audit.rateLimit } : {}) });
-  return updated;
+  if (signal?.aborted) return audit;
+  const cached = readCache(audit.user.login);
+  const latest = cached?.savedAt === audit.auditAt ? buildAudit(cached, audit.fromCache) : audit;
+  const target = latest.repositories.find(({ repository }) => repository.id === repositoryId)?.repository;
+  if (!target || target.hasReadme !== undefined) return latest;
+  const key = `${audit.user.login.toLowerCase()}:${audit.auditAt}:${repositoryId}`;
+  const pending = pendingReadmeChecks.get(key);
+  if (pending) return pending;
+
+  // Navigation cancels the caller's UI update, not this shared, bounded public
+  // request. Back/forward can reuse it instead of spending another API request.
+  const check = (async () => {
+    const hasReadme = await fetchReadmePresence(target);
+    if (hasReadme === undefined) return latest;
+    const currentCache = readCache(audit.user.login);
+    const sameSnapshot = currentCache?.savedAt === audit.auditAt;
+    const current = sameSnapshot ? buildAudit(currentCache, audit.fromCache) : latest;
+    const normalizedRepositories = current.repositories.map(({ repository }) => repository.id === repositoryId ? { ...repository, hasReadme } : repository);
+    const repositories = normalizedRepositories.map((repository) => ({ repository, result: scoreRepository(repository, audit.auditAt) }));
+    const updated = { ...current, repositories, summary: calculateAuditSummary(repositories, audit.auditAt) };
+    // Merge concurrent repository checks, but never revive deleted data or
+    // overwrite a newer forced audit with an older request's result.
+    if (sameSnapshot) writeCache(audit.user.login, { ...currentCache, repositories: normalizedRepositories });
+    return updated;
+  })().finally(() => pendingReadmeChecks.delete(key));
+  pendingReadmeChecks.set(key, check);
+  return check;
 }
 
 export async function runGitHubAudit(

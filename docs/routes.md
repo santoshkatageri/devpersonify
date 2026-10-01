@@ -14,6 +14,8 @@ Routes are introduced only in the phase that owns their working capability. Futu
 | `/profile` | 4 | Reserved generic profile route; contextual implementation uses `/career/:username` | CareerEvidenceProfile | Not routed |
 | `/career/:username/readme` | 3/5 | Career-profile entry to independent GitHub README selection, presentation, safe preview, and Markdown export | CareerEvidenceProfile + local GithubReadmeConfiguration | Public/local |
 | `/career/:username/resume` | 5 | Evidence selection, resume presentation overrides, structured preview, deterministic LaTeX export, and browser-local DOCX export | CareerEvidenceProfile + local LatexResumeConfiguration | Public/local |
+| `/career/:username/linkedin-review` | P1 | Compare user-pasted LinkedIn text with career evidence; text remains in memory | Local CareerEvidenceProfile | Public/local |
+| `/restore` | P1 | Validate and restore a versioned profile backup on a new browser | User-selected JSON file | Public/local |
 | `/resume` | 5 | Reserved generic resume route; contextual implementation uses `/career/:username/resume` | CareerEvidenceProfile | Not routed |
 | `/presence` | 6–7 | Manual professional profile review and role-specific presence map | DeveloperProfile + supplied text | Public/local |
 | `/job-match` | 8 | Job description parsing and evidence match | DeveloperProfile + supplied JD | Public/local |

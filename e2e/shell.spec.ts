@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 function failOnBrowserErrors(page: Page) {
@@ -70,19 +70,22 @@ test("refined landing page is clear, responsive, and console-clean", async ({ pa
   await expect(page.getByRole("heading", { name: "Turn your evidence into a profile people can understand." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Turn the same evidence into a professional resume." })).toBeVisible();
   await expect(page.getByText(/LaTeX source and Word export/)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your feedback becomes the next iteration." })).toBeVisible();
-  await expect(page.getByText(/Feedback is currently saved locally/)).toBeVisible();
-  await page.getByRole("heading", { name: "Your feedback becomes the next iteration." }).scrollIntoViewIfNeeded();
-  await page.getByRole("button", { name: /Send feedback/i }).last().click();
+  await expect(page.getByRole("heading", { name: "We would love to hear what worked well." })).toBeVisible();
+  await expect(page.getByText(/Share feedback through our Tally form/)).toBeVisible();
+  await page.getByRole("heading", { name: "We would love to hear what worked well." }).scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: /Write feedback/i }).last().click();
   const landingFeedback = page.getByRole("dialog", { name: "Help shape DevPersonify" });
   await expect(landingFeedback).toBeVisible();
-  await expect(landingFeedback.getByText(/How was your DevPersonify experience/)).toBeVisible();
+  await expect(landingFeedback.getByText(/Collected via Tally/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Feedback", exact: true })).toHaveCount(0);
   await landingFeedback.getByRole("button", { name: "Close feedback" }).click();
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-landing-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-2-landing-mobile.png", fullPage: true });
-  await page.goto("/audit");
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-landing-mobile.png", fullPage: true });
+  await page.getByRole("link", { name: "Read the user guide: inputs, outputs, and limits →", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "What you provide. What you get." })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await page.getByRole("link", { name: "Start with GitHub audit →", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "See what your public work communicates." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start audit" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -134,6 +137,9 @@ test("successful audit supports stateful routed repository evidence navigation",
   await expect(page.getByRole("heading", { level: 1, name: "forked-project" })).toBeVisible();
   await page.keyboard.press("ArrowLeft");
   await expect(page.getByRole("heading", { level: 1, name: "archived-project" })).toBeVisible();
+  for (const name of ["archived-project", "forked-project"]) {
+    expect(requests.filter((url) => url.endsWith(`/repos/demo/${name}/readme`))).toHaveLength(1);
+  }
   await page.reload();
   await expect(page.getByText("Your decision:").locator("..")).toContainText("KEEP");
   await page.getByRole("link", { name: /Back to repositories/i }).first().click();
@@ -149,15 +155,19 @@ test("successful audit supports stateful routed repository evidence navigation",
   await page.goto("/audit/demo/repositories/demo/archived-project?q=ed-project&sort=name&from=audit");
   await expect(page.getByRole("heading", { level: 1, name: "archived-project" })).toBeVisible();
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-audit-detail-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-2-audit-detail-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-2-audit-detail-mobile.png", fullPage: true });
   await expectNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });
-test("persistent feedback is contextual, private, accessible, and mobile-safe", async ({ page }, testInfo) => {
+test("Tally feedback loads only on request and preserves private context on desktop and mobile", async ({ page }) => {
   const errors = failOnBrowserErrors(page);
   const feedbackNetwork: string[] = [];
   let trackingFeedback = false;
   page.on("request", (request) => { if (trackingFeedback && !request.url().startsWith("http://127.0.0.1:4173")) feedbackNetwork.push(request.url()); });
+  await page.route("https://tally.so/embed/**", (route) => route.fulfill({
+    contentType: "text/html",
+    body: '<!doctype html><html lang="en"><body><h1>Feedback form fixture</h1></body></html>',
+  }));
   await mockSuccessfulGitHub(page);
   await page.goto("/audit/demo");
   await expect(page.getByRole("heading", { level: 1, name: "Demo Developer" })).toBeVisible();
@@ -169,34 +179,47 @@ test("persistent feedback is contextual, private, accessible, and mobile-safe", 
   await feedbackButton.click();
   const dialog = page.getByRole("dialog", { name: "Help shape DevPersonify" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(/Did this audit help you understand your repositories/)).toBeVisible();
+  await expect(dialog.getByText(/Collected via Tally/)).toBeVisible();
   const dialogBox = await dialog.boundingBox();
   const viewport = page.viewportSize()!;
   expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
   expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
   expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport.width);
   expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport.height);
-  await dialog.getByRole("button", { name: "Useful" }).click();
-  await dialog.getByRole("button", { name: "Bug" }).click();
-  await dialog.getByLabel(/What should we improve/).fill("The filter could be clearer.");
-  await dialog.getByRole("button", { name: "Send feedback" }).click();
-  await expect(dialog.getByText(/Saved locally/)).toBeVisible();
-  if (testInfo.project.name === "mobile-375") await page.screenshot({ path: "docs/screenshots/v1-feedback-375.png", fullPage: true });
-  if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/v1-feedback-390.png", fullPage: true });
-  const payload = await page.evaluate(() => JSON.parse(localStorage.getItem("devpersonify:feedback:v1") ?? "[]").at(-1));
-  expect(payload).toMatchObject({ product: "DevPersonify", area: "github_audit", rating: "useful", category: "bug", message: "The filter could be clearer.", delivery: "LOCAL_LAUNCH_STUB" });
-  expect(Object.keys(payload).sort()).toEqual(["applicationVersion", "area", "category", "createdAt", "delivery", "id", "message", "product", "rating"]);
+  const separateLink = dialog.getByRole("link", { name: /Open in new tab/ });
+  await expect(separateLink).toHaveAttribute("href", "https://tally.so/r/PdVrRd?product=DevPersonify&area=github_audit&source=app");
+  await expect(separateLink).toHaveAttribute("rel", "noreferrer");
+  const frame = dialog.locator("iframe");
+  await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+  await expect(page.frameLocator('iframe[title="DevPersonify feedback form"]').getByRole("heading", { name: "Feedback form fixture" })).toBeVisible();
+  const requestedUrl = new URL(feedbackNetwork[0]!);
+  expect(requestedUrl.pathname).toBe("/embed/PdVrRd");
+  expect(Object.fromEntries(requestedUrl.searchParams)).toEqual({ product: "DevPersonify", area: "github_audit", source: "app", hideTitle: "1", alignLeft: "1" });
+  expect(await page.evaluate(() => localStorage.getItem("devpersonify:feedback:v1"))).toBeNull();
+  await expect(dialog.getByRole("link", { name: /Found a bug/ })).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+  expect(await dialog.evaluate((element) => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+  const frameBox = await frame.boundingBox();
+  expect(frameBox!.height).toBeGreaterThan(viewport.height * .65);
+  if (viewport.width >= 640) {
+    await dialog.getByRole("button", { name: "Expand", exact: true }).click();
+    const expandedBox = await dialog.boundingBox();
+    expect(expandedBox!.width).toBe(viewport.width);
+    await dialog.getByRole("button", { name: "Restore size" }).click();
+  }
   await dialog.getByRole("button", { name: "Close feedback" }).click();
   await expect(dialog).not.toBeVisible();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
   await feedbackButton.click();
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expectNoHorizontalOverflow(page);
-  expect(feedbackNetwork).toEqual([]);
+  expect(feedbackNetwork.length).toBeGreaterThanOrEqual(1);
   expect(errors).toEqual([]);
 });
 
 test("repository decisions, portfolio curation, README generation, and persistence work", async ({ page, context }, testInfo) => {
+  test.skip(["desktop-firefox", "mobile-webkit"].includes(testInfo.project.name), "Exact clipboard permission checks run in Chromium.");
   const errors = failOnBrowserErrors(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4173" });
   await mockSuccessfulGitHub(page);
@@ -209,7 +232,7 @@ test("repository decisions, portfolio curation, README generation, and persisten
 
   const showcaseDecision = page.getByLabel("Decision for showcase-project");
   await showcaseDecision.getByRole("button", { name: "Showcase", exact: true }).click();
-  if (testInfo.project.name === "desktop-chromium") {
+  if (testInfo.project.name.startsWith("desktop")) {
     await expect(page.getByText("Your decision: SHOWCASE").filter({ visible: true })).toBeVisible();
     await expect(page.getByText("Showcase", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   } else {
@@ -230,7 +253,7 @@ test("repository decisions, portfolio curation, README generation, and persisten
   await page.locator('input[aria-label="Select keep-project"]:visible').check();
   await page.locator('input[aria-label="Select cleanup-project"]:visible').check();
   await page.getByLabel("Bulk decision").selectOption("REVIEW");
-  await expect(page.getByText(testInfo.project.name === "desktop-chromium" ? "Your decision: REVIEW" : "You: REVIEW", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(testInfo.project.name.startsWith("desktop") ? "Your decision: REVIEW" : "You: REVIEW", { exact: true }).filter({ visible: true }).first()).toBeVisible();
 
   await page.getByRole("button", { name: /Continue to portfolio/i }).click();
   await expect(page.getByRole("heading", { name: "My GitHub portfolio" })).toBeVisible();
@@ -255,7 +278,7 @@ test("repository decisions, portfolio curation, README generation, and persisten
   await expect(preview.getByRole("list").first()).toBeVisible();
   await expect(preview.getByText("Platform engineer | Tooling & Automation")).toBeVisible();
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-3-readme-preview-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-3-readme-preview-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-3-readme-preview-mobile.png", fullPage: true });
 
   await page.getByRole("button", { name: "Markdown source" }).click();
   const sourceField = page.getByLabel("Generated Markdown source");
@@ -274,13 +297,15 @@ test("repository decisions, portfolio curation, README generation, and persisten
   expect(await readFile(downloadPath!, "utf8")).toBe(markdownSource);
 
   await page.reload();
+  await expect(page.getByRole("heading", { name: "Prepare your profile README." })).toBeVisible();
+  await page.getByRole("navigation", { name: "Preparation steps" }).getByRole("button", { name: /Review$/ }).click();
   await expect(page.getByRole("heading", { name: "Make the recommendation yours." })).toBeVisible();
-  await expect(page.getByText(testInfo.project.name === "desktop-chromium" ? "Your decision: SHOWCASE" : "You: SHOWCASE", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(testInfo.project.name.startsWith("desktop") ? "Your decision: SHOWCASE" : "You: SHOWCASE", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await page.getByRole("button", { name: /Prepare$/ }).click();
   await expect(page.getByLabel("Professional headline")).toHaveValue("Platform engineer | Tooling & Automation");
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-3-workspace-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-3-workspace-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-3-workspace-mobile.png", fullPage: true });
 
   await page.getByRole("link", { name: /Build career profile/i }).click();
   await expect(page).toHaveURL(/\/career\/demo/);
@@ -293,7 +318,7 @@ test("repository decisions, portfolio curation, README generation, and persisten
   await expect(page).toHaveURL(/\/career\/demo/);
   await page.getByRole("link", { name: /GitHub preparation/i }).first().click();
   await expect(page).toHaveURL(/\/audit\/demo\/prepare/);
-  await expect(page.getByText(testInfo.project.name === "desktop-chromium" ? "Your decision: SHOWCASE" : "You: SHOWCASE", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(testInfo.project.name.startsWith("desktop") ? "Your decision: SHOWCASE" : "You: SHOWCASE", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: /Audit$/ }).click();
   await expect(page).toHaveURL(/\/audit\/demo$/);
   await page.goBack();
@@ -306,6 +331,7 @@ test("repository decisions, portfolio curation, README generation, and persisten
 });
 
 test("career evidence profile preserves provenance, comparisons, privacy, and persistence", async ({ page, context }, testInfo) => {
+  test.skip(["desktop-firefox", "mobile-webkit"].includes(testInfo.project.name), "Exact clipboard permission checks run in Chromium.");
   const errors = failOnBrowserErrors(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:4173" });
   const resumeExternalRequests: string[] = [];
@@ -316,6 +342,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(page.getByRole("heading", { level: 1, name: "Demo Developer" })).toBeVisible();
   await page.getByRole("link", { name: /Prepare my GitHub/i }).click();
   await expect(page.getByRole("heading", { name: "Make the recommendation yours." })).toBeVisible();
+  await page.locator("tr, article").filter({ has: page.getByRole("link", { name: "showcase-project", exact: true }) }).filter({ visible: true }).getByRole("checkbox", { name: "Portfolio", exact: true }).check();
   await page.getByRole("link", { name: /Build career profile/i }).click();
   await expect(page).toHaveURL(/\/career\/demo/);
   await expect(page.getByRole("heading", { name: "Add private career context." })).toBeVisible();
@@ -326,7 +353,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   trackingResume = true;
   const upload = page.locator('input[type="file"]');
   await upload.setInputFiles({ name: "resume.rtf", mimeType: "application/rtf", buffer: Buffer.from("unsupported") });
-  await expect(page.getByRole("alert")).toContainText("Supported resume files are PDF, DOCX, and UTF-8 TXT");
+  await expect(page.getByRole("alert")).toContainText("Use a Word (.docx) resume for best results");
   await upload.setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: Buffer.from("SKILLS\nTypeScript") });
   await expect(page.getByRole("heading", { name: "Review extracted evidence." })).toBeVisible();
   await page.getByRole("button", { name: /Resume$/ }).click();
@@ -364,15 +391,15 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(page.getByText("Potential resume opportunity").first()).toBeVisible();
   await page.getByRole("button", { name: /Open career profile/i }).click();
   await expect(page.getByRole("heading", { name: "One profile, with sources preserved." })).toBeVisible();
-  await expect(page.getByText("Platform Engineer | C# & Cloud").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "One profile, with sources preserved." }).getByText("Platform Engineer | C# & Cloud", { exact: true })).toBeVisible();
   await expect(page.getByText(/Resume \+ GitHub/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-4-career-profile-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-4-career-profile-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-4-career-profile-mobile.png", fullPage: true });
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "One profile, with sources preserved." })).toBeVisible();
-  await expect(page.getByText("Platform Engineer | C# & Cloud").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "One profile, with sources preserved." }).getByText("Platform Engineer | C# & Cloud", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "showcase-project", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "showcase-project" })).toBeVisible();
   await page.getByRole("link", { name: /Back to repositories/i }).first().click();
@@ -391,7 +418,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(readmePreview.getByRole("link", { name: "showcase-project" })).toBeVisible();
   await expect(readmePreview.getByText("README-only developer platform focus.")).toBeVisible();
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-5-readme-regression-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-5-readme-regression-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-5-readme-regression-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "Markdown source" }).click();
   const careerReadmeField = page.getByLabel("Generated career README Markdown source");
   const careerReadmeSource = await careerReadmeField.inputValue();
@@ -446,7 +473,7 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(page.getByTestId("latex-structured-preview").getByText("Resume-specific project wording & impact.")).toBeVisible();
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "desktop-chromium") await page.screenshot({ path: "docs/screenshots/phase-5-latex-resume-desktop.png", fullPage: true });
-  else await page.screenshot({ path: "docs/screenshots/phase-5-latex-resume-mobile.png", fullPage: true });
+  else if (testInfo.project.name === "mobile-chromium") await page.screenshot({ path: "docs/screenshots/phase-5-latex-resume-mobile.png", fullPage: true });
 
   await page.getByRole("button", { name: "LaTeX source" }).click();
   const latexSourceField = page.getByLabel("Generated LaTeX source");
@@ -515,6 +542,21 @@ test("career evidence profile preserves provenance, comparisons, privacy, and pe
   await expect(page.getByLabel("Resume summary presentation")).toHaveValue("Evidence-backed platform engineering summary.");
   await page.getByRole("link", { name: /Back to career profile/i }).click();
   await expect(page.getByRole("heading", { name: "One profile, with sources preserved." })).toBeVisible();
+  const backupDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download profile backup" }).click();
+  const backupDownload = await backupDownloadPromise;
+  const backup = await readFile((await backupDownload.path())!, "utf8");
+  expect(JSON.parse(backup)).toMatchObject({ kind: "devpersonify-career-profile", profile: { username: "demo" } });
+  await page.getByRole("link", { name: /Review LinkedIn profile/i }).click();
+  await expect(page.getByRole("heading", { name: "Review your LinkedIn profile" })).toBeVisible();
+  await page.getByLabel("Your LinkedIn profile text").fill("Platform Engineer with TypeScript experience.");
+  await page.getByRole("button", { name: "Compare profiles" }).click();
+  await expect(page.getByText("Phrase found").first()).toBeVisible();
+  await expect(page.getByText(/Exact phrase not found/).first()).toBeVisible();
+  await page.getByRole("link", { name: "Back to career profile" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('input[accept="application/json,.json"]').setInputFiles({ name: "career-backup.json", mimeType: "application/json", buffer: Buffer.from(backup) });
+  await expect(page.getByText(/Profile restored in this browser/)).toBeVisible();
   await page.getByRole("link", { name: /GitHub preparation/i }).first().click();
   await expect(page.getByRole("heading", { name: "Make the recommendation yours." })).toBeVisible();
   await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: /Audit$/ }).click();
@@ -550,5 +592,189 @@ test("not-found, rate-limit, malformed, network, and empty states recover clearl
   await page.goto("/audit/empty/prepare");
   await expect(page.getByRole("heading", { name: "Make the recommendation yours." })).toBeVisible();
   await expect(page.getByText("0 of 0 reviewed")).toBeVisible();
+  expect(errors.filter((message) => !(testInfo.project.name === "desktop-firefox" && message.includes("CORS request did not succeed")))).toEqual([]);
+});
+
+test("preparation changes reach career evidence explicitly and preserve direct edits with a recovery version", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/audit/demo/prepare");
+  const repositoryRow = (name: string) => page.locator("tr, article").filter({ has: page.getByRole("link", { name, exact: true }) }).filter({ visible: true });
+  await repositoryRow("showcase-project").getByRole("checkbox", { name: "Portfolio", exact: true }).check();
+  await repositoryRow("keep-project").getByRole("checkbox", { name: "Portfolio", exact: true }).check();
+  await page.getByRole("button", { name: /Continue to portfolio/ }).click();
+  await page.locator("article").filter({ has: page.getByRole("heading", { name: "keep-project", exact: true }) }).getByRole("button", { name: /Up/ }).click();
+  await page.getByRole("button", { name: /Continue to profile/ }).click();
+  await page.getByLabel("Professional headline").fill("Prepared platform engineer");
+  await page.getByLabel("Current focus").fill("Original preparation focus");
+  await page.getByLabel("Website", { exact: true }).fill("https://example.dev/prepared");
+  await page.getByLabel("Additional skills").fill("Kubernetes");
+  await page.getByRole("link", { name: /Build career profile/ }).click();
+  const careerSteps = page.getByRole("navigation", { name: "Career profile steps" });
+  await careerSteps.getByRole("button", { name: /Profile$/ }).click();
+  await expect(page.getByLabel("Professional headline")).toHaveValue("Prepared platform engineer");
+  await expect(page.getByLabel("Career direction")).toHaveValue("Original preparation focus");
+  await expect(page.getByLabel("Website", { exact: true })).toHaveValue("https://example.dev/prepared");
+  await page.getByLabel("Professional headline").fill("Direct career headline");
+  const initialDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Back up now", exact: true }).click();
+  const initialBackup = JSON.parse(await readFile((await (await initialDownloadPromise).path())!, "utf8"));
+  expect(initialBackup.profile.githubEvidence.repositories.map((item: { name: string }) => item.name)).toEqual(["keep-project", "showcase-project"]);
+  expect(initialBackup.profile.skills.map((item: { name: string }) => item.name)).toContain("Kubernetes");
+
+  await page.getByRole("link", { name: /GitHub preparation/ }).first().click();
+  await repositoryRow("showcase-project").getByRole("checkbox", { name: "Portfolio", exact: true }).uncheck();
+  await page.getByRole("navigation", { name: "Preparation steps" }).getByRole("button", { name: /Prepare$/ }).click();
+  await page.getByLabel("Professional headline").fill("Changed preparation headline");
+  await page.getByLabel("Current focus").fill("Updated preparation focus");
+  await page.getByRole("link", { name: /Build career profile/ }).click();
+  await careerSteps.getByRole("button", { name: /Profile$/ }).click();
+  await expect(page.getByLabel("Career direction")).toHaveValue("Original preparation focus");
+  await page.getByRole("button", { name: "Update from GitHub preparation", exact: true }).click();
+  await expect(page.getByText("Updated project choices and preparation details. Your career-profile edits were preserved.")).toBeVisible();
+  await expect(page.getByLabel("Professional headline")).toHaveValue("Direct career headline");
+  await expect(page.getByLabel("Career direction")).toHaveValue("Updated preparation focus");
+  await page.getByText(/Profile history \(/).click();
+  const recovery = page.locator("li").filter({ has: page.getByText("Before preparation update", { exact: true }) });
+  await expect(recovery).toContainText("2 repositories");
+  await expect(recovery).toContainText("Direct career headline");
+  const updatedDownloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Back up now", exact: true }).click();
+  const updatedBackup = JSON.parse(await readFile((await (await updatedDownloadPromise).path())!, "utf8"));
+  expect(updatedBackup.profile.githubEvidence.repositories.map((item: { name: string }) => item.name)).toEqual(["keep-project"]);
+  expect(updatedBackup.profile.careerDirection.professionalHeadline.value).toBe("Direct career headline");
+  expect(updatedBackup.profile.careerDirection.careerDirection.value).toBe("Updated preparation focus");
+  expect(errors).toEqual([]);
+});
+
+test("accepted review corrections and removals update saved resume outputs without including pending evidence", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/career/demo");
+  await page.getByLabel("Paste resume text").fill("SKILLS\nAWS, PendingSkill\n\nPROJECTS\nOriginal Project\nSynthetic project details");
+  await page.getByRole("button", { name: "Extract for review", exact: true }).click();
+  const reviewCard = (title: string) => page.locator("article").filter({ has: page.locator(`input[value="${title}"]`) });
+  await reviewCard("AWS").getByRole("button", { name: "Accept item", exact: true }).click();
+  await reviewCard("Original Project").getByRole("button", { name: "Accept item", exact: true }).click();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Profile$/, exact: false }).click();
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("invalid-email");
+  await expect(page.getByRole("textbox", { name: "Email", exact: true })).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert")).toContainText("Check Email");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("tester@example.dev");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.goto("/career/demo/resume");
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("button", { name: "LaTeX source", exact: true }).click();
+  const source = page.getByLabel("Generated LaTeX source");
+  await expect(source).toContainText("Original Project");
+  await expect(source).toContainText("AWS");
+  await expect(source).not.toContainText("PendingSkill");
+  await page.goto("/career/demo");
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Review$/ }).click();
+  await reviewCard("Original Project").getByLabel("Title / skill / label").fill("Corrected Project");
+  await reviewCard("AWS").getByLabel("Title / skill / label").fill("Azure");
+  await page.goto("/career/demo/resume");
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("button", { name: "LaTeX source", exact: true }).click();
+  await expect(source).toContainText("Corrected Project");
+  await expect(source).toContainText("Azure");
+  await expect(source).not.toContainText("Original Project");
+  await expect(source).not.toContainText("AWS");
+  const downloadedPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download .tex", exact: true }).click();
+  const downloadedSource = await readFile((await (await downloadedPromise).path())!, "utf8");
+  expect(downloadedSource).toBe(await source.inputValue());
+  await page.goto("/career/demo/readme");
+  await page.getByRole("button", { name: "Markdown source", exact: true }).click();
+  await expect(page.getByLabel("Generated career README Markdown source")).toContainText("Azure");
+  await expect(page.getByLabel("Generated career README Markdown source")).not.toContainText("PendingSkill");
+
+  await page.goto("/career/demo");
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Review$/ }).click();
+  await reviewCard("Corrected Project").getByRole("button", { name: "Remove", exact: true }).click();
+  await reviewCard("Azure").getByRole("button", { name: "Remove", exact: true }).click();
+  await page.goto("/career/demo/resume");
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("button", { name: "LaTeX source", exact: true }).click();
+  await expect(source).not.toContainText("Corrected Project");
+  await expect(source).not.toContainText("Azure");
+  await expect(source).not.toContainText("PendingSkill");
+  await page.goto("/career/demo/readme");
+  await page.getByRole("button", { name: "Markdown source", exact: true }).click();
+  await expect(page.getByLabel("Generated career README Markdown source")).not.toContainText("Azure");
+  expect(errors).toEqual([]);
+});
+
+
+test("recommended Word input preserves separate roles, list detail and dates through export locally", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/career/demo");
+  await expect(page.getByRole("heading", { name: "Word (.docx) recommended", exact: true })).toBeVisible();
+  const requests: string[] = [];
+  page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173")) requests.push(request.url()); });
+  const paragraph = (text: string, style = "") => `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ""}<w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const bullet = (text: string) => `<w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const bytes = zipSync({ "word/document.xml": strToU8(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraph("EXPERIENCE")}${paragraph("Senior Engineer 2022 – Present", "Heading2")}${paragraph("Example Company")}${bullet("Built services across multiple regions.")}${bullet("Reduced deployment failures.")}${paragraph("Engineer", "Heading2")}${paragraph("Earlier Company")}${paragraph("2020 - 2022")}${bullet("Built internal tools.")}${paragraph("SKILLS")}${paragraph("Go, Terraform")}</w:body></w:document>`) });
+  await page.locator('input[type="file"]').setInputFiles({ name: "synthetic-resume.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from(bytes) });
+  await expect(page.getByRole("heading", { name: "Review extracted evidence.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Experience 2", exact: true })).toBeVisible();
+  const role = page.locator("article").filter({ has: page.locator('input[value="Senior Engineer"]') });
+  await expect(role.getByLabel("Organization")).toHaveValue("Example Company");
+  await expect(role.getByLabel("Start date")).toHaveValue("2022");
+  await expect(role.getByLabel("End date")).toHaveValue("Present");
+  await expect(role.getByLabel("Description")).toHaveValue("• Built services across multiple regions.\n• Reduced deployment failures.");
+  await role.getByRole("button", { name: "Accept item", exact: true }).click();
+  await page.goto("/career/demo/resume");
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("button", { name: "LaTeX source", exact: true }).click();
+  const source = page.getByLabel("Generated LaTeX source");
+  await expect(source).toContainText("Senior Engineer");
+  await expect(source).toContainText("Example Company");
+  await expect(source).toContainText("2022 -- Present");
+  await expect(source).toContainText("Built services across multiple regions.");
+  await expect(source).not.toContainText("Earlier Company");
+  expect(requests).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("saved workflow remains reachable from home, information pages, and after reload", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/audit/demo/prepare");
+  await page.getByRole("navigation", { name: "Preparation steps" }).getByRole("button", { name: /Prepare$/ }).click();
+  await page.getByRole("textbox", { name: "Professional headline", exact: true }).fill("Saved navigation test");
+  const destination = "/audit/demo/prepare?step=profile";
+  for (const name of ["Privacy", "Methodology", "Backup & restore"] as const) {
+    await page.getByRole("contentinfo").getByRole("link", { name, exact: true }).click();
+    const resume = page.getByRole("link", { name: "Continue saved session →", exact: true });
+    await expect(resume).toHaveAttribute("href", destination);
+    await expect(page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await resume.click();
+    await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  }
+  await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Welcome back, @demo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Your work already tells a story/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Open audit →", exact: true })).toHaveAttribute("href", "/audit/demo");
+  await expectNoHorizontalOverflow(page);
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  await page.getByRole("link", { name: "Build career profile →", exact: true }).click();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Profile$/ }).click();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveAttribute("href", "/career/demo?step=profile");
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Resume", exact: true }).click();
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Methodology", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveAttribute("href", "/career/demo/resume?step=generate");
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Download .docx", exact: true })).toBeVisible();
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Support via GitHub", exact: true })).toHaveAttribute("target", "_blank");
   expect(errors).toEqual([]);
 });

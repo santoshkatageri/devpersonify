@@ -1,5 +1,6 @@
 import type { CareerEvidenceProfile, CareerRecord, SkillEvidence } from "../../domain/career-evidence-profile";
 import { CLASSIC_TEMPLATE_ID, CLASSIC_TEMPLATE_VERSION, type LatexResumeConfiguration, type ResumeGenerationResult, type ResumeReadinessItem, type ResumeSectionKey } from "../../domain/latex-resume";
+import { resumeDescriptionParagraphs, resumeRecordParagraphs } from "./resume-paragraphs";
 import { presentationValue } from "./resume-configuration";
 
 export function escapeLatexContent(value: string): string {
@@ -17,6 +18,10 @@ export function normalizeSafeHttpUrl(value: string): string | null {
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     return url.toString();
   } catch { return null; }
+}
+
+export function isValidResumeContact(link: { label: string; value: string }): boolean {
+  return link.label === "Email" ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(link.value) : normalizeSafeHttpUrl(link.value) !== null;
 }
 
 export function escapeLatexUrl(value: string): string | null {
@@ -74,7 +79,7 @@ export function resolveResumeContent(profile: CareerEvidenceProfile, config: Lat
   const profileProjects: ResolvedResumeProject[] = profile.projects.filter((item) => selected("projects", item.id)).map((item) => ({
     id: item.id,
     title: override(config, "projects", item.id, "title", item.title),
-    description: override(config, "projects", item.id, "description", item.description ?? ""),
+    description: resumeRecordParagraphs(profile, config, "projects", item).join("\n"),
     url: item.url ?? "",
     technologies: item.technologies,
     source: "profile",
@@ -108,8 +113,8 @@ function recordDates(record: CareerRecord): string {
   return [record.startDate, record.endDate].filter(Boolean).join(" -- ");
 }
 
-function latexBullets(value: string): string {
-  const bullets = value.split(/\n|•/).map((item) => item.trim()).filter(Boolean);
+function latexBullets(value: string | string[]): string {
+  const bullets = Array.isArray(value) ? value : resumeDescriptionParagraphs(value);
   if (!bullets.length) return "";
   return `\n\\begin{itemize}\n${bullets.map((item) => `  \\item ${escapeLatexContent(item)}`).join("\n")}\n\\end{itemize}`;
 }
@@ -131,13 +136,13 @@ function renderHeader(content: ResolvedResumeContent): string {
 \\end{center}`;
 }
 
-function renderRecords(records: CareerRecord[], config: LatexResumeConfiguration, type: string): string {
+function renderRecords(records: CareerRecord[], config: LatexResumeConfiguration, type: string, profile: CareerEvidenceProfile): string {
   return records.map((record) => {
     const title = override(config, type, record.id, "title", record.title);
     const organization = override(config, type, record.id, "organization", record.organization ?? "");
-    const description = override(config, type, record.id, "description", record.description ?? "");
+    const description = resumeRecordParagraphs(profile, config, type, record);
     const technologies = override(config, type, record.id, "technologies", record.technologies.join(", "));
-    return `\\resumeEntry{${escapeLatexContent(title)}}{${escapeLatexContent(organization)}}{${escapeLatexContent(recordDates(record))}}${description ? latexBullets(description) : ""}${technologies ? `\n\\resumeTechnologies{${escapeLatexContent(technologies)}}` : ""}`;
+    return `\\resumeEntry{${escapeLatexContent(title)}}{${escapeLatexContent(organization)}}{${escapeLatexContent(recordDates(record))}}${description.length ? latexBullets(description) : ""}${technologies ? `\n\\resumeTechnologies{${escapeLatexContent(technologies)}}` : ""}`;
   }).join("\n\n");
 }
 
@@ -148,18 +153,18 @@ function renderProjects(projects: ResolvedResumeProject[]): string {
   }).join("\n\n");
 }
 
-function renderSection(key: ResumeSectionKey, content: ResolvedResumeContent, config: LatexResumeConfiguration): string {
+function renderSection(key: ResumeSectionKey, content: ResolvedResumeContent, config: LatexResumeConfiguration, profile: CareerEvidenceProfile): string {
   if (key === "header") return renderHeader(content);
   if (key === "summary") return content.summary ? `\\section{Summary}\n${escapeLatexContent(content.summary)}` : "";
-  if (key === "experience") return content.experience.length ? `\\section{Experience}\n${renderRecords(content.experience, config, "experience")}` : "";
+  if (key === "experience") return content.experience.length ? `\\section{Experience}\n${renderRecords(content.experience, config, "experience", profile)}` : "";
   if (key === "skills") {
     if (!content.skills.length) return "";
     const label = presentationValue(config, "skills:groupLabel", "Technical Skills");
     return `\\section{Skills}\n\\textbf{${escapeLatexContent(label)}:} ${content.skills.map((skill) => escapeLatexContent(override(config, "skills", skill.id, "name", skill.name))).join(", ")}`;
   }
   if (key === "projects") return content.projects.length ? `\\section{Selected Projects}\n${renderProjects(content.projects)}` : "";
-  if (key === "education") return content.education.length ? `\\section{Education}\n${renderRecords(content.education, config, "education")}` : "";
-  if (key === "certifications") return content.certifications.length ? `\\section{Certifications}\n${renderRecords(content.certifications, config, "certifications")}` : "";
+  if (key === "education") return content.education.length ? `\\section{Education}\n${renderRecords(content.education, config, "education", profile)}` : "";
+  if (key === "certifications") return content.certifications.length ? `\\section{Certifications}\n${renderRecords(content.certifications, config, "certifications", profile)}` : "";
   if (key === "achievements") return content.achievements.length ? `\\section{Achievements}\n${content.achievements.map((item) => `\\resumeItem{${escapeLatexContent(override(config, "achievements", item.id, "title", item.title))}}{${escapeLatexContent(override(config, "achievements", item.id, "description", item.description ?? ""))}}`).join("\n")}` : "";
   if (key === "openSource") return content.openSource.length ? `\\section{Open Source}\n${renderProjects(content.openSource)}` : "";
   if (key === "links") {
@@ -217,7 +222,7 @@ export function generateLatexResume(profile: CareerEvidenceProfile, config: Late
   const omittedEmptySections: ResumeSectionKey[] = [];
   for (const section of config.sections) {
     if (!section.enabled) continue;
-    const value = renderSection(section.key, content, config);
+    const value = renderSection(section.key, content, config, profile);
     if (value.trim()) { rendered.push(value); includedSections.push(section.key); }
     else omittedEmptySections.push(section.key);
   }
@@ -229,9 +234,10 @@ export function generateLatexResume(profile: CareerEvidenceProfile, config: Late
 
 export function calculateResumeReadiness(profile: CareerEvidenceProfile, config: LatexResumeConfiguration): ResumeReadinessItem[] {
   const content = resolveResumeContent(profile, config);
+  const validContactCount = content.links.filter(isValidResumeContact).length;
   return [
     { key: "name", label: "Name", ready: Boolean(content.name), optional: false, explanation: content.name ? "Name evidence is available." : "Add a name before sharing the resume." },
-    { key: "contact", label: "Contact", ready: content.links.length > 0 || Boolean(content.location), optional: true, explanation: content.links.length || content.location ? "Contact or location evidence is selected." : "No contact link or location selected." },
+    { key: "contact", label: "Contact", ready: validContactCount > 0 || Boolean(content.location), optional: true, explanation: validContactCount || content.location ? "Contact or location evidence is selected." : "No valid contact link or location selected." },
     { key: "experience", label: "Experience", ready: content.experience.length > 0, optional: true, explanation: `${content.experience.length} experience record(s) selected.` },
     { key: "projects", label: "Selected projects", ready: content.projects.length > 0, optional: true, explanation: `${content.projects.length} project(s) selected; ${content.projects.filter((project) => project.source === "github").length} have GitHub evidence.` },
     { key: "skills", label: "Skills", ready: content.skills.length > 0, optional: true, explanation: `${content.skills.length} skill(s) selected.` },

@@ -3,11 +3,13 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { ArrowRightIcon, CloseIcon, GitBranchIcon, MenuIcon } from "./icons";
 import { contextualHeaderAction } from "./workflow-context";
 import { FeedbackControl } from "../features/feedback/feedback-control";
+import { rememberWorkflow, savedWorkflow } from "./saved-workflow";
+import { workflowContextFromPath } from "./workflow-context";
 import { WorkflowNavigation } from "./workflow-navigation";
 
 const navigation = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "What you get", href: "/#features" },
+  { label: "How it works", href: "/about#how-it-works" },
+  { label: "User guide", href: "/guide" },
   { label: "Methodology", href: "/methodology" },
 ];
 
@@ -25,7 +27,9 @@ function Brand() {
 export function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const contextualAction = contextualHeaderAction(location.pathname);
+  const saved = savedWorkflow();
+  const contextualAction = !workflowContextFromPath(location.pathname) && saved ? null : contextualHeaderAction(location.pathname);
+  useEffect(() => { rememberWorkflow(location.pathname + location.search); }, [location.pathname, location.search]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -54,13 +58,13 @@ export function SiteLayout() {
                 {item.label}
               </a>
             ))}
-            <Link
+            {contextualAction ? <Link
               to={contextualAction.to}
               className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
             >
               {contextualAction.label}
               <ArrowRightIcon className="h-4 w-4" />
-            </Link>
+            </Link> : null}
           </nav>
           <button
             type="button"
@@ -81,10 +85,10 @@ export function SiteLayout() {
                   {item.label}
                 </a>
               ))}
-              <Link to={contextualAction.to} className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
+              {contextualAction ? <Link to={contextualAction.to} className="mt-3 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
                 {contextualAction.label}
                 <ArrowRightIcon className="h-4 w-4" />
-              </Link>
+              </Link> : null}
             </div>
           </nav>
         ) : null}
@@ -106,9 +110,10 @@ export function SiteLayout() {
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600 sm:justify-end">
             <Link className="rounded-md hover:text-ink" to="/privacy">Privacy</Link>
             <Link className="rounded-md hover:text-ink" to="/methodology">Methodology</Link>
-            <a className="rounded-md hover:text-ink" href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>
+            <Link className="rounded-md hover:text-ink" to="/restore">Backup & restore</Link>
+            <a className="rounded-md hover:text-ink" href="https://github.com/santoshkatageri/devpersonify/issues/new" target="_blank" rel="noreferrer">Support via GitHub</a>
           </div>
-          <p className="text-xs text-slate-400 sm:col-span-2 sm:text-right">© 2026 DevPersonify. Evidence before claims.</p>
+          <p className="text-xs text-slate-600 sm:col-span-2 sm:text-right">© 2026 DevPersonify. Evidence before claims.</p>
         </div>
       </footer>
       <FeedbackControl />

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /career/
+Disallow: /audit/*/prepare
+
+Sitemap: https://devpersonify.learnwithsk.dev/sitemap.xml

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { ArrowRightIcon, ShieldIcon } from "../components/icons";
 
+import { tallyFeedbackFormId } from "../features/feedback/tally-feedback";
+
 interface InfoSection {
   title: string;
   body: string;
@@ -29,18 +31,20 @@ function InformationPage({ eyebrow, title, intro, sections }: { eyebrow: string;
 }
 
 export function PrivacyPage() {
-  return <InformationPage eyebrow="Privacy baseline" title="Your evidence stays yours." intro="DevPersonify is designed to begin without accounts, write access, or hidden data collection." sections={[
-    { title: "Public GitHub reads only", body: "The initial audit will use public GitHub profile and repository metadata. It will not request write permission or modify, archive, or delete repositories." },
-    { title: "No account in the initial workflow", body: "The anonymous audit does not require authentication. When local persistence is added, stored audit and profile data will remain in the browser until a validated feature requires secure server storage." },
-    { title: "Professional content is private", body: "Resume, career profile, job description, and manually supplied professional profile content must be treated as private. DevPersonify will not send that content to AI services in V1." },
+  return <InformationPage eyebrow="Privacy" title="Your evidence stays yours." intro="DevPersonify works without an account or GitHub write access. Here is what happens to your information today." sections={[
+    { title: "Public GitHub reads", body: "The audit requests public profile and repository metadata directly from GitHub. It never modifies, archives, or deletes repositories. GitHub receives your browser's request when you run an audit." },
+    { title: "Saved in this browser", body: "Audit results, repository decisions, career profile fields, recent profile versions, backup download timestamps, your last workflow location, extracted resume text, and generated document settings are stored in this browser's local storage. They are not synced to another device. Anyone using the same browser profile may be able to see them, and clearing site data can erase them." },
+    { title: "Your control", body: "Use the career profile's data controls to clear resume, GitHub, or all career data. Export a backup before clearing browser data or moving devices. Profile history keeps up to five recent versions, subject to storage space. Clearing a resume or GitHub evidence also removes saved history; clearing the career profile removes its history and backup status. Downloads contain the current profile, not its history." },
+    { title: "Feedback", body: tallyFeedbackFormId() ? "The feedback form is hosted by Tally and loads only when you open Feedback. Tally receives your browser request, the general app section, and information you enter in its form. Submitted feedback is available to the DevPersonify team in Tally and may be copied to its private Google Sheet for review. No resume, profile, repository details, or previous local feedback drafts are automatically sent. Avoid putting private career details in your feedback." : "Feedback notes are stored only in this browser and are not delivered to the team. GitHub Issues are public and require a GitHub account." },
+    { title: "No external resume processing", body: "PDF, DOCX, and text resumes are processed in your browser. DevPersonify does not send resume or manually entered professional content to an AI service, document service, or DevPersonify server." },
   ]} />;
 }
 
 export function MethodologyPage() {
-  return <InformationPage eyebrow="Methodology" title="A score you can inspect." intro="Repository recommendations will come from published deterministic rules—not hidden inference or assumptions about developer ability." sections={[
+  return <InformationPage eyebrow="Methodology" title="A score you can inspect." intro="Repository recommendations come from published deterministic rules, not hidden inference or assumptions about developer ability." sections={[
     { title: "Evidence, not judgment", body: "The repository score reviews public portfolio signals such as activity, originality, descriptions, documentation, topics, licensing, and completion. It is not a score of engineering skill or employability." },
     { title: "Unknown is not absent", body: "If a signal has not been fetched, it is marked unknown instead of being scored as missing. Confidence describes evidence coverage, not the probability that a recommendation is correct." },
-    { title: "Every recommendation has reasons", body: "Each classification will expose the contributing signal, observed value, points, and explanation. Users will be able to override recommendations locally without erasing the computed result." },
+    { title: "Every recommendation has reasons", body: "Each classification exposes the contributing signal, observed value, points, and explanation. You can override recommendations locally without erasing the computed result." },
     { title: "No destructive action", body: "Archive and cleanup are recommendations only. V1 never changes a GitHub repository automatically and does not request repository write permissions." },
   ]} />;
 }

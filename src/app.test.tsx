@@ -33,8 +33,8 @@ describe("DevPersonify routes", () => {
     expect(screen.getByText(/illustrative output · example values/i)).toBeInTheDocument();
     expect(screen.getAllByText("Available")).toHaveLength(6);
     expect(screen.queryByText(/planned|future/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Your feedback becomes the next iteration." })).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: /Send feedback/i })[0]!);
+    expect(screen.getByRole("heading", { name: "We would love to hear what worked well." })).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /Write feedback/i })[0]!);
     expect(screen.getByRole("dialog", { name: "Help shape DevPersonify" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Feedback" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close feedback" }));
@@ -42,10 +42,12 @@ describe("DevPersonify routes", () => {
     expect(await screen.findByRole("heading", { level: 1, name: /see what your public work communicates/i })).toBeInTheDocument();
   });
 
-  it("links shipped landing capabilities to existing contextual workflows when local career context exists", () => {
-    localStorage.setItem("devpersonify:career-evidence:v1:developer", JSON.stringify({ username: "developer", updatedAt: "2026-08-18T00:00:00Z" }));
+  it("shows a personal workspace and local output links for a saved career profile", () => {
+    localStorage.setItem("devpersonify:career-evidence:v1:developer", JSON.stringify({ schemaVersion: 1, identity: {}, careerDirection: {}, githubEvidence: { repositories: [] }, resumeReview: [], derived: {}, username: "developer", updatedAt: "2026-08-18T00:00:00Z" }));
     renderAt("/");
-    expect(screen.getByRole("link", { name: /Open GitHub profile/i })).toHaveAttribute("href", "/audit/developer/prepare");
+    expect(screen.getByRole("heading", { name: "Welcome back, @developer" })).toBeInTheDocument();
+    expect(screen.queryByText(/Your work already tells a story/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View saved evidence/i })).toHaveAttribute("href", "/career/developer?step=preview");
     expect(screen.getByRole("link", { name: /Open career profile/i })).toHaveAttribute("href", "/career/developer?step=preview");
     expect(screen.getByRole("link", { name: /Build README/i })).toHaveAttribute("href", "/career/developer/readme");
     expect(screen.getByRole("link", { name: /Open Resume Studio/i })).toHaveAttribute("href", "/career/developer/resume");
