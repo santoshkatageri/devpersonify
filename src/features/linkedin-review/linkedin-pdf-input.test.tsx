@@ -1,0 +1,30 @@
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { LinkedInPdfInput } from "./linkedin-pdf-input";
+import { parseLinkedInPdf, type LinkedInPdfImport } from "./linkedin-pdf";
+import { emptyLinkedInSections } from "./linkedin-sections";
+vi.mock("./linkedin-pdf", () => ({ parseLinkedInPdf: vi.fn() }));
+it("ignores an older file completing after the latest selection and requires explicit application", async () => {
+  let completeOld!: (value: LinkedInPdfImport) => void;
+  vi.mocked(parseLinkedInPdf).mockImplementationOnce(() => new Promise((resolve) => { completeOld = resolve; })).mockResolvedValueOnce({ pages: 2, text: "Latest", unmapped: "", sections: { ...emptyLinkedInSections(), about: "Latest" } });
+  const onImport = vi.fn();
+  render(<LinkedInPdfInput onImport={onImport} />);
+  fireEvent.change(screen.getByLabelText("LinkedIn profile PDF"), { target: { files: [new File(["old"], "old.pdf")] } });
+  fireEvent.change(screen.getByLabelText("LinkedIn profile PDF"), { target: { files: [new File(["new"], "new.pdf")] } });
+  await screen.findByText(/2 pages read/);
+  await act(async () => completeOld({ pages: 1, text: "Old private draft", unmapped: "", sections: { ...emptyLinkedInSections(), about: "Old private draft" } }));
+  expect(screen.queryByText(/1 pages read/)).toBeNull();
+  expect(onImport).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Use detected sections" }));
+  expect(onImport).toHaveBeenCalledWith(expect.objectContaining({ text: "Latest" }), "sections");
+});
+it("does not restore cleared import text when parsing completes after remount", async () => {
+  let complete!: (value: LinkedInPdfImport) => void;
+  vi.mocked(parseLinkedInPdf).mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
+  const onImport = vi.fn();
+  const view = render(<LinkedInPdfInput key={0} onImport={onImport} />);
+  fireEvent.change(screen.getByLabelText("LinkedIn profile PDF"), { target: { files: [new File(["old"], "old.pdf")] } });
+  view.rerender(<LinkedInPdfInput key={1} onImport={onImport} />);
+  await act(async () => complete({ pages: 1, text: "Cleared private draft", unmapped: "", sections: emptyLinkedInSections() }));
+  expect(screen.queryByText(/pages read/)).toBeNull();
+  expect(onImport).not.toHaveBeenCalled();
+});
