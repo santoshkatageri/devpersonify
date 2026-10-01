@@ -33,8 +33,8 @@ describe("DevPersonify routes", () => {
     expect(screen.getByText(/illustrative output · example values/i)).toBeInTheDocument();
     expect(screen.getAllByText("Available")).toHaveLength(6);
     expect(screen.queryByText(/planned|future/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Your feedback becomes the next iteration." })).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: /Send feedback/i })[0]!);
+    expect(screen.getByRole("heading", { name: "We would love to hear what worked well." })).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: /Write feedback/i })[0]!);
     expect(screen.getByRole("dialog", { name: "Help shape DevPersonify" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Feedback" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close feedback" }));

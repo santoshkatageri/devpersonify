@@ -6,9 +6,13 @@ DevPersonify is a developer career evidence platform. V1 turns public GitHub dat
 
 ## Current status
 
+Launch update: profile backups can be downloaded from Career Profile and restored on a new browser at `/restore`. Manual LinkedIn review at `/career/:username/linkedin-review` compares pasted profile wording with stored evidence without accessing LinkedIn or retaining pasted text. Saved career profiles remain usable without a new GitHub request; imported GitHub evidence is preserved until the user clears it.
+
+Feedback uses the published [DevPersonify Tally form](https://tally.so/r/PdVrRd). Tally’s native Google Sheets connection is configured separately in Tally; see [setup instructions](docs/feedback-tally.md). Override `VITE_TALLY_FEEDBACK_FORM_ID` at build time to select another form, or explicitly set it empty to use local browser drafts without delivery. Bugs go to public GitHub Issues. No Supabase or Google credentials are needed in this app.
+
 Phase 5 — Evidence-backed LaTeX Resume Builder: **PASSED**.
 
-The canonical Career Evidence Profile powers independent GitHub Profile README and Resume Studio outputs. Resume Studio now exports both deterministic LaTeX and a real browser-generated Word/DOCX file from the same selections, ordering, and presentation overrides. Shared clipboard fallbacks, exact local downloads, and a privacy-preserving local feedback control complete V1 launch hardening without changing source evidence. No AI, external compiler/document service, backend, database, authentication, paid API, OAuth, GitHub token, or write operation is used.
+The canonical Career Evidence Profile powers independent GitHub Profile README and Resume Studio outputs. Resume Studio now exports both deterministic LaTeX and a real browser-generated Word/DOCX file from the same selections, ordering, and presentation overrides. Shared clipboard fallbacks, exact local downloads, and a privacy-preserving local feedback control complete V1 launch hardening without changing source evidence. Career tools use no AI, external compiler/document service, backend, database, authentication, paid API, OAuth, GitHub token, or repository write operation. Optional feedback delivery uses an external Tally form; Google authorization takes place in Tally’s integration settings.
 
 ## Intended V1 stack
 
@@ -49,7 +53,7 @@ npm run test:e2e
 npm run build
 ```
 
-The Vite development server binds to `0.0.0.0` for local and Arena live-preview use. Playwright's Chromium browser dependencies are required for `npm run test:e2e`.
+The Vite development server binds to `0.0.0.0` for local and Arena live-preview use. Install test browsers with `npx playwright install --with-deps chromium firefox webkit` before `npm run test:e2e`. Exact clipboard permission tests run in Chromium; independent profile backup and LinkedIn tests, audit navigation, and automated accessibility checks also run in Firefox and WebKit.
 
 ## Product constraints
 

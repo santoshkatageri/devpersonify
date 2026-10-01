@@ -9,6 +9,8 @@ import { CareerProfilePage } from "./pages/career-profile-page";
 import { LatexResumePage } from "./pages/latex-resume-page";
 import { GithubReadmePage } from "./pages/github-readme-page";
 import { RepositoryDetailPage } from "./pages/repository-detail-page";
+import { LinkedInReviewPage } from "./pages/linkedin-review-page";
+import { RestoreProfilePage } from "./pages/restore-profile-page";
 
 function createAppRouter() {
   return createBrowserRouter([
@@ -24,8 +26,10 @@ function createAppRouter() {
         { path: "career/:username", element: <CareerProfilePage /> },
         { path: "career/:username/resume", element: <LatexResumePage /> },
         { path: "career/:username/readme", element: <GithubReadmePage /> },
+        { path: "career/:username/linkedin-review", element: <LinkedInReviewPage /> },
         { path: "methodology", element: <MethodologyPage /> },
         { path: "privacy", element: <PrivacyPage /> },
+        { path: "restore", element: <RestoreProfilePage /> },
         { path: "*", element: <NotFoundPage /> },
       ],
     },
