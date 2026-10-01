@@ -3,6 +3,8 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { ArrowRightIcon, CloseIcon, GitBranchIcon, MenuIcon } from "./icons";
 import { contextualHeaderAction } from "./workflow-context";
 import { FeedbackControl } from "../features/feedback/feedback-control";
+import { rememberWorkflow, savedWorkflow } from "./saved-workflow";
+import { workflowContextFromPath } from "./workflow-context";
 import { WorkflowNavigation } from "./workflow-navigation";
 
 const navigation = [
@@ -25,7 +27,9 @@ function Brand() {
 export function SiteLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
-  const contextualAction = contextualHeaderAction(location.pathname);
+  const saved = savedWorkflow();
+  const contextualAction = !workflowContextFromPath(location.pathname) && saved ? { label: "Continue saved session", to: saved.to } : contextualHeaderAction(location.pathname);
+  useEffect(() => { rememberWorkflow(location.pathname + location.search); }, [location.pathname, location.search]);
 
   useEffect(() => {
     setMenuOpen(false);

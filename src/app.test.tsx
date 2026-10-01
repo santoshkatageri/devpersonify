@@ -43,7 +43,7 @@ describe("DevPersonify routes", () => {
   });
 
   it("links shipped landing capabilities to existing contextual workflows when local career context exists", () => {
-    localStorage.setItem("devpersonify:career-evidence:v1:developer", JSON.stringify({ username: "developer", updatedAt: "2026-08-18T00:00:00Z" }));
+    localStorage.setItem("devpersonify:career-evidence:v1:developer", JSON.stringify({ schemaVersion: 1, identity: {}, careerDirection: {}, githubEvidence: {}, resumeReview: [], derived: {}, username: "developer", updatedAt: "2026-08-18T00:00:00Z" }));
     renderAt("/");
     expect(screen.getByRole("link", { name: /Open GitHub profile/i })).toHaveAttribute("href", "/audit/developer/prepare");
     expect(screen.getByRole("link", { name: /Open career profile/i })).toHaveAttribute("href", "/career/developer?step=preview");

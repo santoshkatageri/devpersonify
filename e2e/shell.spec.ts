@@ -297,6 +297,8 @@ test("repository decisions, portfolio curation, README generation, and persisten
   expect(await readFile(downloadPath!, "utf8")).toBe(markdownSource);
 
   await page.reload();
+  await expect(page.getByRole("heading", { name: "Prepare your profile README." })).toBeVisible();
+  await page.getByRole("navigation", { name: "Preparation steps" }).getByRole("button", { name: /Review$/ }).click();
   await expect(page.getByRole("heading", { name: "Make the recommendation yours." })).toBeVisible();
   await expect(page.getByText(testInfo.project.name.startsWith("desktop") ? "Your decision: SHOWCASE" : "You: SHOWCASE", { exact: true }).filter({ visible: true }).first()).toBeVisible();
   await page.getByRole("button", { name: /Prepare$/ }).click();
@@ -733,5 +735,41 @@ test("recommended Word input preserves separate roles, list detail and dates thr
   await expect(source).toContainText("Built services across multiple regions.");
   await expect(source).not.toContainText("Earlier Company");
   expect(requests).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("saved workflow remains reachable from home, information pages, and after reload", async ({ page }) => {
+  const errors = failOnBrowserErrors(page);
+  await mockSuccessfulGitHub(page);
+  await page.goto("/audit/demo/prepare");
+  await page.getByRole("navigation", { name: "Preparation steps" }).getByRole("button", { name: /Prepare$/ }).click();
+  await page.getByRole("textbox", { name: "Professional headline", exact: true }).fill("Saved navigation test");
+  const destination = "/audit/demo/prepare?step=profile";
+  for (const name of ["Privacy", "Methodology", "Backup & restore"] as const) {
+    await page.getByRole("contentinfo").getByRole("link", { name, exact: true }).click();
+    const resume = page.getByRole("link", { name: "Continue saved session →", exact: true });
+    await expect(resume).toHaveAttribute("href", destination);
+    await expect(page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await resume.click();
+    await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  }
+  await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Home", exact: true }).click();
+  await page.reload();
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  await page.getByRole("link", { name: "Build career profile →", exact: true }).click();
+  await page.getByRole("navigation", { name: "Career profile steps" }).getByRole("button", { name: /Profile$/ }).click();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveAttribute("href", "/career/demo?step=profile");
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Professional headline", exact: true })).toHaveValue("Saved navigation test");
+  await page.getByRole("navigation", { name: "DevPersonify workflow" }).getByRole("link", { name: "Resume", exact: true }).click();
+  await page.getByRole("button", { name: /Generate$/ }).click();
+  await page.getByRole("contentinfo").getByRole("link", { name: "Methodology", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Continue saved session →", exact: true })).toHaveAttribute("href", "/career/demo/resume?step=generate");
+  await page.getByRole("link", { name: "Continue saved session →", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Download .docx", exact: true })).toBeVisible();
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Support via GitHub", exact: true })).toHaveAttribute("target", "_blank");
   expect(errors).toEqual([]);
 });

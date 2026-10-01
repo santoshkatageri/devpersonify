@@ -1,6 +1,6 @@
 import { resumeRecordParagraphs } from "./resume-paragraphs";
 import { useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { CareerEvidenceProfile, EvidenceProvenance } from "../../domain/career-evidence-profile";
 import type { LatexResumeConfiguration, ResumeSectionKey, SelectableContentType } from "../../domain/latex-resume";
 import { ShieldIcon } from "../../components/icons";
@@ -95,7 +95,10 @@ function GenerateStep({ profile, config }: Pick<Props, "profile" | "config">) {
 }
 
 export function LatexResumeBuilder(props: Props) {
-  const [step, setStep] = useState<Step>("select");
+  const [params, setParams] = useSearchParams();
+  const requested = params.get("step");
+  const step: Step = requested === "configure" || requested === "review" || requested === "generate" ? requested : "select";
+  const setStep = (value: Step) => { const next = new URLSearchParams(params); next.set("step", value); setParams(next); };
   const nav: Array<[Step, string]> = [["select", "Select"], ["configure", "Configure"], ["review", "Review"], ["generate", "Generate"]];
   return <div className="container-page pb-24 pt-8"><header className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-soft sm:p-7"><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-[10px] uppercase tracking-[.15em] text-cobalt-600">Evidence-backed LaTeX resume</p><h1 className="mt-1 text-2xl font-semibold tracking-[-.03em]">DevPersonify Classic <span className="text-sm font-normal text-slate-400">v1.0</span></h1></div><div className="flex flex-col gap-2 sm:items-end"><p className={`text-xs ${props.saved ? "text-lime-700" : "text-amber-700"}`}>{props.saved ? "✓ Configuration saved locally" : "Local save unavailable"}</p><Link to={`/career/${encodeURIComponent(props.profile.username)}?step=preview`} className="rounded-lg border px-3 py-2 text-[10px] font-semibold">← Back to career profile</Link></div></div><nav className="mt-6 grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1" aria-label="LaTeX resume steps">{nav.map(([value, label], index) => <button key={value} type="button" onClick={() => setStep(value)} aria-current={step === value ? "step" : undefined} className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold ${step === value ? "bg-white text-ink shadow-sm" : "text-slate-500"}`}><span className="hidden sm:inline">{index + 1}. </span>{label}</button>)}</nav></header><main className="mt-10">{step === "select" ? <SelectStep {...props} next={() => setStep("configure")} /> : step === "configure" ? <ConfigureStep {...props} next={() => setStep("review")} /> : step === "review" ? <ReviewStep {...props} next={() => setStep("generate")} /> : <GenerateStep profile={props.profile} config={props.config} />}</main></div>;
 }

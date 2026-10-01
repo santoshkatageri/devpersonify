@@ -4,6 +4,7 @@ import { ButtonLink, SectionHeading } from "../components/ui";
 import { CheckIcon, FileIcon, GitBranchIcon, LayersIcon, SearchIcon, ShieldIcon, SparkIcon } from "../components/icons";
 import { openFeedbackPanel } from "../features/feedback/feedback";
 
+import { savedWorkflow } from "../components/saved-workflow";
 import { tallyFeedbackFormId } from "../features/feedback/tally-feedback";
 
 interface CapabilityCardProps {
@@ -20,22 +21,6 @@ interface CapabilityCardProps {
 function CapabilityCard({ icon, label, title, description, cta, to, onAction, accent = false }: CapabilityCardProps) {
   const actionClasses = `inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold transition ${accent ? "bg-lime-300 text-lime-950 hover:bg-lime-400" : "border border-slate-300 bg-white text-cobalt-700 hover:border-cobalt-300"}`;
   return <article className={`group flex min-h-full flex-col overflow-hidden rounded-3xl border p-6 transition duration-300 hover:-translate-y-1 hover:shadow-soft sm:p-7 ${accent ? "border-cobalt-200 bg-cobalt-950 text-white" : "border-slate-200 bg-white"}`}><div className="flex items-start justify-between gap-4"><span className={`grid h-11 w-11 place-items-center rounded-xl ${accent ? "bg-white/10 text-lime-300" : "bg-cobalt-50 text-cobalt-600"}`}>{icon}</span><span className={`rounded-md px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-[.14em] ${accent ? "bg-white/10 text-lime-300" : "bg-lime-50 text-lime-900"}`}>Available</span></div><p className={`mt-7 font-mono text-[10px] font-semibold uppercase tracking-[.15em] ${accent ? "text-lime-300" : "text-cobalt-600"}`}>{label}</p><h3 className="mt-3 text-xl font-semibold tracking-[-0.025em]">{title}</h3><p className={`mt-3 flex-1 text-sm leading-6 ${accent ? "text-white/65" : "text-slate-600"}`}>{description}</p><div className="mt-6">{to ? <Link to={to} className={actionClasses}>{cta} →</Link> : <button type="button" onClick={onAction} className={actionClasses}>{cta} →</button>}</div></article>;
-}
-
-function existingWorkflowContext(): { username: string; hasCareer: boolean } | null {
-  try {
-    const careerKeys = Object.keys(localStorage).filter((key) => key.startsWith("devpersonify:career-evidence:v1:"));
-    if (careerKeys.length) {
-      const profiles = careerKeys.map((key) => { try { return JSON.parse(localStorage.getItem(key) ?? "null") as { username?: string; updatedAt?: string } | null; } catch { return null; } }).filter((value): value is { username: string; updatedAt?: string } => Boolean(value?.username)).sort((a, b) => Date.parse(b.updatedAt ?? "") - Date.parse(a.updatedAt ?? ""));
-      if (profiles[0]) return { username: profiles[0].username, hasCareer: true };
-    }
-    const prefixes = ["devpersonify:preparation:v1:", "devpersonify:audit:v1:"];
-    for (const prefix of prefixes) {
-      const key = Object.keys(localStorage).find((candidate) => candidate.startsWith(prefix));
-      if (key) return { username: key.slice(prefix.length), hasCareer: false };
-    }
-  } catch { /* Landing remains useful without local storage. */ }
-  return null;
 }
 
 function AuditPreview() {
@@ -61,7 +46,7 @@ function AuditPreview() {
 }
 
 export function HomePage() {
-  const context = existingWorkflowContext();
+  const context = savedWorkflow();
   const username = context ? encodeURIComponent(context.username) : "";
   const preparationRoute = username ? `/audit/${username}/prepare` : "/audit";
   const careerRoute = username ? `/career/${username}${context?.hasCareer ? "?step=preview" : ""}` : "/audit";
