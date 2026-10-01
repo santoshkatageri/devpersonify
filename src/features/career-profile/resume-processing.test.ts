@@ -82,6 +82,12 @@ describe("local resume processing", () => {
     expect(result.items.every((item) => item.status === "PENDING" && item.provenance.source === "RESUME_PROVIDED")).toBe(true);
   });
 
+  it("retains description bullet boundaries for later export without adding markers to titles", () => {
+    const items = extractResumeItems("EXPERIENCE\n• Platform Engineer\nExample Company\n2022 - Present\n• Built services across\nmultiple regions.\n• Reduced latency.", "resume:synthetic");
+    expect(items[0]?.title).toBe("Platform Engineer");
+    expect(items[0]?.description).toBe("• Built services across\nmultiple regions.\n• Reduced latency.");
+  });
+
   it("processes a valid UTF-8 TXT file", async () => {
     const result = await processResumeFile(fileWithArrayBuffer([resumeText], "resume.txt", "text/plain"));
     expect(result.document.fileType).toBe("TXT");

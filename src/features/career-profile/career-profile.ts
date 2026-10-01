@@ -1,4 +1,5 @@
 import { CAREER_EVIDENCE_SCHEMA_VERSION, type CareerEvidenceDerived, type CareerEvidenceProfile, type CareerRecord, type CareerSection, type EvidenceComparison, type EvidenceProvenance, type EvidenceValue, type GitHubCareerEvidence, type ProvenanceRef, type ResumeDocumentEvidence, type ResumeReviewItem, type SkillEvidence } from "../../domain/career-evidence-profile";
+import { transferPreparation } from "./preparation-transfer";
 import type { GitHubAudit } from "../github-audit/run-audit";
 import { getPreference, type PreparationState } from "../github-preparation/preparation";
 
@@ -17,9 +18,10 @@ function evidenceValue(value: string, source: EvidenceProvenance, sourceId: stri
 export function githubEvidenceFromAudit(audit: GitHubAudit, preparation: PreparationState): GitHubCareerEvidence {
   const observedAt = audit.auditAt;
   const selectedIds = new Set(preparation.portfolioOrder.filter((repositoryId) => getPreference(preparation, repositoryId).selectedForPortfolio));
-  const hasSelections = selectedIds.size > 0;
-  const repositories = audit.repositories
-    .filter(({ repository, result }) => hasSelections ? selectedIds.has(repository.id) : result.classification === "SHOWCASE")
+  const repositories = [...selectedIds].flatMap((repositoryId) => {
+    const entry = audit.repositories.find(({ repository }) => repository.id === repositoryId);
+    return entry ? [entry] : [];
+  })
     .map(({ repository }) => {
       const preference = getPreference(preparation, repository.id);
       return {
@@ -69,7 +71,12 @@ export function createCareerEvidenceProfile(audit: GitHubAudit, preparation: Pre
     derived: emptyDerived(now),
     sectionPreferences: { headline: true, summary: true, experience: true, selectedProjects: true, skills: true, education: true, certifications: true, achievements: true, links: true },
   };
-  return deriveCareerEvidence(profile, now);
+  return deriveCareerEvidence(transferPreparation(profile, preparation, now), now);
+}
+
+export function refreshCareerPreparation(profile: CareerEvidenceProfile, audit: GitHubAudit, preparation: PreparationState, now = new Date().toISOString()): CareerEvidenceProfile {
+  if (profile.username.toLowerCase() !== audit.user.login.toLowerCase() || profile.username.toLowerCase() !== preparation.username.toLowerCase()) throw new Error("Profile and preparation must belong to the same GitHub account.");
+  return deriveCareerEvidence(transferPreparation({ ...profile, githubEvidence: githubEvidenceFromAudit(audit, preparation), updatedAt: now }, preparation, now), now);
 }
 
 function emptyDerived(now: string): CareerEvidenceDerived {
@@ -80,14 +87,59 @@ export function attachResume(profile: CareerEvidenceProfile, document: ResumeDoc
   return deriveCareerEvidence({ ...profile, updatedAt: now, resumeEvidence: document, resumeReview: items }, now);
 }
 
+function sameSource(left: ProvenanceRef, right: ProvenanceRef): boolean {
+  return left.source === right.source && left.sourceId === right.sourceId && left.observedAt === right.observedAt;
+}
+
+function acceptedEvidence(profile: CareerEvidenceProfile, item: ResumeReviewItem): CareerRecord | SkillEvidence | undefined {
+  const records = profile[item.section];
+  if (item.acceptedRecordId) return records.find((record) => record.id === item.acceptedRecordId && record.provenance.some((source) => source.sourceId === item.id || sameSource(source, item.provenance)));
+  // Older profiles have document-level source IDs. Match exact content before
+  // adopting a link; never guess which independently edited record it belonged to.
+  const matches = records.filter((record) => record.provenance.some((source) => sameSource(source, item.provenance)) && (
+    "normalizedName" in record ? record.normalizedName === normalizeSkill(item.title) :
+      record.title === (item.title || item.description || "Untitled item") &&
+      (record.organization ?? "") === item.organization && (record.description ?? "") === item.description &&
+      (record.startDate ?? "") === item.startDate && (record.endDate ?? "") === item.endDate &&
+      (record.url ?? "") === item.url && JSON.stringify(record.technologies) === JSON.stringify(item.technologies)
+  ));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+export function canEditReviewItem(profile: CareerEvidenceProfile, item: ResumeReviewItem): boolean {
+  return item.status !== "ACCEPTED" || Boolean(acceptedEvidence(profile, item));
+}
+
+function removeAcceptedEvidence(profile: CareerEvidenceProfile, item: ResumeReviewItem, now: string): CareerEvidenceProfile {
+  const accepted = acceptedEvidence(profile, item);
+  if (!accepted) return profile;
+  const sourceIndex = accepted.provenance.findIndex((source) => source.sourceId === item.id || sameSource(source, item.provenance));
+  // Missing provenance means the record was independently replaced. Keep it.
+  if (sourceIndex < 0) return profile;
+  const retained = accepted.provenance.filter((_, index) => index !== sourceIndex);
+  return { ...profile, [item.section]: profile[item.section].flatMap((record) => record.id !== accepted.id ? [record] : retained.length ? [{ ...record, provenance: retained, updatedAt: now }] : []) } as CareerEvidenceProfile;
+}
+
 export function editReviewItem(profile: CareerEvidenceProfile, itemId: string, changes: Partial<Pick<ResumeReviewItem, "title" | "organization" | "description" | "startDate" | "endDate" | "technologies" | "url">>, now = new Date().toISOString()): CareerEvidenceProfile {
-  const resumeReview = profile.resumeReview.map((item) => item.id === itemId ? { ...item, ...changes, provenance: provenance("USER_PROVIDED", item.provenance.sourceId, now, "Edited during resume review") } : item);
-  return deriveCareerEvidence({ ...profile, updatedAt: now, resumeReview }, now);
+  const item = profile.resumeReview.find((candidate) => candidate.id === itemId);
+  if (!item || !canEditReviewItem(profile, item)) return profile;
+  const accepted = item.status === "ACCEPTED" ? acceptedEvidence(profile, item) : undefined;
+  const edited: ResumeReviewItem = { ...item, ...changes, status: "PENDING", provenance: provenance("USER_PROVIDED", item.id, now, "Edited during resume review") };
+  delete edited.acceptedRecordId;
+  const base = accepted ? removeAcceptedEvidence(profile, item, now) : profile;
+  const next = { ...base, updatedAt: now, resumeReview: base.resumeReview.map((candidate) => candidate.id === itemId ? edited : candidate) };
+  if (!accepted || !(edited.section === "skills" ? edited.title.trim() : edited.title.trim() || edited.description.trim())) return deriveCareerEvidence(next, now);
+  // Preserve output selections when correcting one item, while letting renamed
+  // shared skills split or merge without discarding their independent sources.
+  const keepId = !base[item.section].some((record) => record.id === accepted.id) ? accepted.id : undefined;
+  return acceptReviewItem(next, itemId, now, keepId);
 }
 
 export function removeReviewItem(profile: CareerEvidenceProfile, itemId: string, now = new Date().toISOString()): CareerEvidenceProfile {
-  const resumeReview = profile.resumeReview.filter((item) => item.id !== itemId);
-  return deriveCareerEvidence({ ...profile, updatedAt: now, resumeReview }, now);
+  const item = profile.resumeReview.find((candidate) => candidate.id === itemId);
+  if (!item || !canEditReviewItem(profile, item)) return profile;
+  const base = item.status === "ACCEPTED" ? removeAcceptedEvidence(profile, item, now) : profile;
+  return deriveCareerEvidence({ ...base, updatedAt: now, resumeReview: base.resumeReview.filter((candidate) => candidate.id !== itemId) }, now);
 }
 
 export function addManualReviewItem(profile: CareerEvidenceProfile, section: CareerSection, now = new Date().toISOString()): CareerEvidenceProfile {
@@ -108,26 +160,26 @@ function normalizeSkill(value: string): string {
   return value.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
 }
 
-export function acceptReviewItem(profile: CareerEvidenceProfile, itemId: string, now = new Date().toISOString()): CareerEvidenceProfile {
+export function acceptReviewItem(profile: CareerEvidenceProfile, itemId: string, now = new Date().toISOString(), preferredRecordId?: string): CareerEvidenceProfile {
   const item = profile.resumeReview.find((candidate) => candidate.id === itemId);
-  if (!item || item.status === "ACCEPTED") return profile;
-  const resumeReview = profile.resumeReview.map((candidate) => candidate.id === itemId ? { ...candidate, status: "ACCEPTED" as const } : candidate);
-  let next: CareerEvidenceProfile = { ...profile, updatedAt: now, resumeReview };
+  if (!item || item.status === "ACCEPTED" || !(item.section === "skills" ? item.title.trim() : item.title.trim() || item.description.trim())) return profile;
+  const acceptedItem = { ...item, provenance: { ...item.provenance, sourceId: item.id } };
+  let next = { ...profile, updatedAt: now };
+  let acceptedRecordId: string;
   if (item.section === "skills") {
     const normalizedName = normalizeSkill(item.title);
-    if (normalizedName) {
-      const existing = next.skills.find((skill) => skill.normalizedName === normalizedName);
-      const source = item.provenance;
-      const skills: SkillEvidence[] = existing
-        ? next.skills.map((skill) => skill.id === existing.id ? { ...skill, provenance: [...skill.provenance, source], updatedAt: now } : skill)
-        : [...next.skills, { id: id("skill"), name: item.title.trim(), normalizedName, provenance: [source], githubRepositoryIds: [], updatedAt: now }];
-      next = { ...next, skills };
-    }
+    const existing = next.skills.find((skill) => skill.normalizedName === normalizedName);
+    acceptedRecordId = existing?.id ?? preferredRecordId ?? id("skill");
+    const skills: SkillEvidence[] = existing
+      ? next.skills.map((skill) => skill.id === existing.id ? { ...skill, provenance: [...skill.provenance, acceptedItem.provenance], updatedAt: now } : skill)
+      : [...next.skills, { id: acceptedRecordId, name: item.title.trim(), normalizedName, provenance: [acceptedItem.provenance], githubRepositoryIds: [], updatedAt: now }];
+    next = { ...next, skills };
   } else {
-    const record = recordFromItem(item, now);
-    const key = item.section;
-    next = { ...next, [key]: [...next[key], record] } as CareerEvidenceProfile;
+    const record = recordFromItem(acceptedItem, now);
+    acceptedRecordId = preferredRecordId ?? record.id;
+    next = { ...next, [item.section]: [...next[item.section], { ...record, id: acceptedRecordId }] } as CareerEvidenceProfile;
   }
+  next.resumeReview = profile.resumeReview.map((candidate) => candidate.id === itemId ? { ...acceptedItem, status: "ACCEPTED", acceptedRecordId } : candidate);
   return deriveCareerEvidence(next, now);
 }
 
@@ -142,8 +194,15 @@ export function updateProfileField(profile: CareerEvidenceProfile, group: "ident
 }
 
 export function updateAcceptedRecord(profile: CareerEvidenceProfile, section: Exclude<CareerSection, "skills">, recordId: string, changes: Partial<CareerRecord>, now = new Date().toISOString()): CareerEvidenceProfile {
-  const records = profile[section].map((record) => record.id === recordId ? { ...record, ...changes, provenance: [provenance("USER_PROVIDED", record.id, now, "Edited after acceptance")], updatedAt: now } : record);
-  return deriveCareerEvidence({ ...profile, updatedAt: now, [section]: records } as CareerEvidenceProfile, now);
+  const review = profile.resumeReview.find((item) => item.section === section && item.status === "ACCEPTED" && acceptedEvidence(profile, item)?.id === recordId);
+  const source = provenance("USER_PROVIDED", review?.id ?? recordId, now, "Edited after acceptance");
+  const records = profile[section].map((record) => record.id === recordId ? { ...record, ...changes, provenance: [source], updatedAt: now } : record);
+  const edited = records.find((record) => record.id === recordId);
+  const resumeReview = review && edited ? profile.resumeReview.map((item) => item.id === review.id ? {
+    ...item, acceptedRecordId: recordId, title: edited.title, organization: edited.organization ?? "", description: edited.description ?? "",
+    startDate: edited.startDate ?? "", endDate: edited.endDate ?? "", url: edited.url ?? "", technologies: edited.technologies, provenance: source,
+  } : item) : profile.resumeReview;
+  return deriveCareerEvidence({ ...profile, updatedAt: now, [section]: records, resumeReview } as CareerEvidenceProfile, now);
 }
 
 export function clearGitHubEvidence(profile: CareerEvidenceProfile, now = new Date().toISOString()): CareerEvidenceProfile {
@@ -193,9 +252,10 @@ export function deriveCareerEvidence(profile: CareerEvidenceProfile, now = new D
   const skills = profile.skills.map((skill) => {
     const repositoryIds = githubSkills.get(skill.normalizedName) ?? [];
     const hasResume = skill.provenance.some((source) => source.source === "RESUME_PROVIDED");
-    const result = repositoryIds.length ? "MULTIPLE_SOURCE_SUPPORT" : "RESUME_ONLY";
-    comparisons.push({ id: `comparison:skill:${skill.normalizedName}`, subject: skill.name, result, explanation: repositoryIds.length ? `Observed in ${repositoryIds.length} selected public ${repositoryIds.length === 1 ? "repository" : "repositories"} and listed in accepted resume evidence.` : "Listed in accepted resume evidence; relevant public GitHub evidence was not detected.", provenance: provenance("DERIVED", skill.id, now), githubRepositoryIds: repositoryIds });
-    return { ...skill, githubRepositoryIds: repositoryIds, provenance: hasResume ? skill.provenance : skill.provenance, updatedAt: now };
+    const result = repositoryIds.length ? "MULTIPLE_SOURCE_SUPPORT" : hasResume ? "RESUME_ONLY" : "USER_ONLY";
+    const sourceDescription = hasResume ? "accepted resume evidence" : "information you provided";
+    comparisons.push({ id: `comparison:skill:${skill.normalizedName}`, subject: skill.name, result, explanation: repositoryIds.length ? `Observed in ${repositoryIds.length} selected public ${repositoryIds.length === 1 ? "repository" : "repositories"} and listed in ${sourceDescription}.` : `Listed in ${sourceDescription}; relevant public GitHub evidence was not detected.`, provenance: provenance("DERIVED", skill.id, now), githubRepositoryIds: repositoryIds });
+    return { ...skill, githubRepositoryIds: repositoryIds, updatedAt: now };
   });
   for (const [normalized, repositoryIds] of githubSkills) {
     if (!skills.some((skill) => skill.normalizedName === normalized)) comparisons.push({ id: `comparison:github:${normalized}`, subject: normalized, result: "GITHUB_ONLY", explanation: `Observed in ${repositoryIds.length} selected public ${repositoryIds.length === 1 ? "repository" : "repositories"}; not listed in accepted resume skills.`, provenance: provenance("DERIVED", repositoryIds[0] ?? "github", now), githubRepositoryIds: repositoryIds });
@@ -221,10 +281,10 @@ export function deriveCareerEvidence(profile: CareerEvidenceProfile, now = new D
     comparisons, completeness,
     sourceCoverage: {
       github: profile.githubEvidence.repositories.length >= 3 ? "STRONG" : profile.githubEvidence.username ? "PARTIAL" : "NONE",
-      resume: !profile.resumeEvidence ? "NONE" : accepted >= 5 ? "COMPLETE" : "PARTIAL",
+      resume: !profile.resumeEvidence ? "NONE" : accepted > 0 && accepted === profile.resumeReview.length ? "COMPLETE" : "PARTIAL",
       userProvided: profile.userProvided.length >= 5 ? "COMPLETE" : profile.userProvided.length ? "PARTIAL" : "NONE",
       crossSourceSupport: multiple,
-      potentialGaps: comparisons.filter((comparison) => comparison.result === "RESUME_ONLY" || comparison.result === "POTENTIAL_RESUME_OPPORTUNITY").length,
+      potentialGaps: comparisons.filter((comparison) => comparison.result === "RESUME_ONLY" || comparison.result === "USER_ONLY" || comparison.result === "POTENTIAL_RESUME_OPPORTUNITY").length,
     },
     generatedAt: now,
   };

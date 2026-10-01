@@ -178,7 +178,7 @@ function splitBlocks(lines: string[]): string[][] {
     if (!line.trim()) {
       if (block.length) blocks.push(block);
       block = [];
-    } else block.push(line.replace(/^[•●▪◦*-]\s*/, "").trim());
+    } else block.push(line.trim());
   }
   if (block.length) blocks.push(block);
   return blocks;
@@ -224,8 +224,8 @@ export function extractResumeItems(text: string, sourceId: string, now = new Dat
       const range = dateRange(combined);
       const url = combined.match(/https?:\/\/[^\s)]+/i)?.[0] ?? (section === "professionalLinks" ? combined.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)?.[0] ?? "" : "");
       items.push(reviewItem(section, sourceId, now, {
-        title: block[0] ?? "",
-        organization: section === "experience" || section === "education" ? block[1] ?? "" : "",
+        title: (block[0] ?? "").replace(/^[•●▪◦*-]\s*/, ""),
+        organization: section === "experience" || section === "education" ? (block[1] ?? "").replace(/^[•●▪◦*-]\s*/, "") : "",
         description: section === "experience" || section === "education" ? block.slice(2).filter((line) => {
           const rangeMatch = line.match(dateRangePattern);
           return !rangeMatch || rangeMatch[0].trim() !== line.trim();

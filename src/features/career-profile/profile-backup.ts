@@ -53,7 +53,7 @@ function validProfile(profile: Record<string, unknown>): boolean {
     Array.isArray(profile.resumeReview) && profile.resumeReview.every((item) => object(item) &&
       text(item.id) && sections.includes(String(item.section)) && text(item.title) &&
       text(item.organization) && text(item.description) && text(item.startDate) &&
-      text(item.endDate) && text(item.url) && texts(item.technologies) &&
+      text(item.endDate) && text(item.url) && optionalText(item.acceptedRecordId) && texts(item.technologies) &&
       ["PENDING", "ACCEPTED"].includes(String(item.status)) && source(item.provenance)) &&
     careerRecords(profile.experience) && careerRecords(profile.education) &&
     careerRecords(profile.projects) && careerRecords(profile.certifications) &&

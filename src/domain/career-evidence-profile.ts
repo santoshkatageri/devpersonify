@@ -41,6 +41,7 @@ export interface ResumeReviewItem {
   technologies: string[];
   url: string;
   status: ReviewStatus;
+  acceptedRecordId?: string;
   provenance: ProvenanceRef;
 }
 
@@ -110,7 +111,7 @@ export interface CareerIdentity {
   otherInformation?: EvidenceValue<string>;
 }
 
-export type ComparisonResult = "MULTIPLE_SOURCE_SUPPORT" | "RESUME_ONLY" | "GITHUB_ONLY" | "POTENTIAL_RESUME_OPPORTUNITY";
+export type ComparisonResult = "MULTIPLE_SOURCE_SUPPORT" | "RESUME_ONLY" | "USER_ONLY" | "GITHUB_ONLY" | "POTENTIAL_RESUME_OPPORTUNITY";
 
 export interface EvidenceComparison {
   id: string;

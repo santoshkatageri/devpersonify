@@ -1,7 +1,7 @@
 import { strFromU8, unzipSync } from "fflate";
 import type { CareerEvidenceProfile, CareerRecord, EvidenceValue } from "../../domain/career-evidence-profile";
 import { buildDocxResumeModel, DOCX_MIME_TYPE, generateDocxResume } from "./docx-generator";
-import { generateLatexResume } from "./latex-generator";
+import { calculateResumeReadiness, generateLatexResume } from "./latex-generator";
 import { createLatexResumeConfiguration, moveResumeSection, moveSelectedContent, setContentSelected, setResumeOverride, toggleResumeSection } from "./resume-configuration";
 
 const now = "2026-08-18T00:00:00Z";
@@ -63,6 +63,48 @@ describe("browser-local DOCX resume generation", () => {
     expect(xml).toContain("weather_forecast");
     expect(xml).not.toContain("javascript:alert(1)");
     expect(new DOMParser().parseFromString(xml, "application/xml").querySelector("script")).toBeNull();
+  });
+
+  it("keeps PDF paragraphs consistent between Word and LaTeX while honoring presentation edits", () => {
+    const profile = career();
+    const description = "Built APIs across\nseveral regions.\nReduced a semi-\nmanual process.";
+    profile.experience[0]!.description = description;
+    profile.resumeEvidence = { id: "resume:pdf", fileType: "PDF", text: "EXPERIENCE\nEngineer\nExample Company\n• Built APIs across\nseveral regions.\n• Reduced a semi-\nmanual process.", importedAt: now, sizeBytes: 100, private: true };
+    const config = createLatexResumeConfiguration(profile, now);
+    const model = buildDocxResumeModel(profile, config);
+    expect(model.sections.find((section) => section.key === "experience")?.entries[0]?.description).toEqual(["Built APIs across several regions.", "Reduced a semi-manual process."]);
+    expect(generateLatexResume(profile, config).source).toContain("\\item Built APIs across several regions.");
+    expect(generateLatexResume(profile, config).source).toContain("\\item Reduced a semi-manual process.");
+    const edited = setResumeOverride(config, "experience:exp1:description", "Built APIs across\nseveral regions.", now);
+    expect(buildDocxResumeModel(profile, edited).sections.find((section) => section.key === "experience")?.entries[0]?.description).toEqual(["Built APIs across", "several regions."]);
+    expect(profile.experience[0]!.description).toBe(description);
+  });
+
+  it("does not mark invalid contact links ready or include them in Word", () => {
+    const profile = career("minimal");
+    profile.githubEvidence.profileUrl = "";
+    profile.identity.website = value("website", "javascript:alert(1)");
+    profile.identity.email = value("email", "not-an-email");
+    const config = createLatexResumeConfiguration(profile, now);
+    expect(calculateResumeReadiness(profile, config).find((item) => item.key === "contact")?.ready).toBe(false);
+    expect(buildDocxResumeModel(profile, config).contact).toEqual([]);
+    expect(documentXml(generateDocxResume(profile, config).bytes).xml).not.toContain("not-an-email");
+  });
+
+  it("provides portable font defaults and keeps resume headings and bullet paragraphs together", () => {
+    const profile = career();
+    const { files, xml } = documentXml(generateDocxResume(profile, createLatexResumeConfiguration(profile, now)).bytes);
+    const ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    const document = new DOMParser().parseFromString(xml, "application/xml");
+    const styles = new DOMParser().parseFromString(strFromU8(files["word/styles.xml"]!), "application/xml");
+    const runs = Array.from(document.getElementsByTagNameNS(ns, "r"));
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.every((run) => run.getElementsByTagNameNS(ns, "rFonts")[0]?.getAttributeNS(ns, "ascii") === "Arial")).toBe(true);
+    expect(styles.getElementsByTagNameNS(ns, "docDefaults")).toHaveLength(1);
+    const style = (id: string) => Array.from(styles.getElementsByTagNameNS(ns, "style")).find((item) => item.getAttributeNS(ns, "styleId") === id)!;
+    expect(style("Bullet").getElementsByTagNameNS(ns, "keepLines")).toHaveLength(1);
+    expect(style("EntryTitle").getElementsByTagNameNS(ns, "keepNext")).toHaveLength(1);
+    expect(style("EntrySubtitle").getElementsByTagNameNS(ns, "keepNext")).toHaveLength(1);
   });
 
   it("does not mutate canonical evidence", () => {

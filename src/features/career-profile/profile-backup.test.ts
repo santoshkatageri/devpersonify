@@ -18,7 +18,7 @@ const profile: CareerEvidenceProfile = {
   resumeEvidence: { id: "resume-1", fileType: "PASTED_TEXT", text: "Private resume content", importedAt: observedAt, sizeBytes: 22, private: true },
   resumeReview: [{
     id: "review-1", section: "skills", title: "TypeScript", organization: "", description: "",
-    startDate: "", endDate: "", technologies: [], url: "", status: "ACCEPTED", provenance: source,
+    startDate: "", endDate: "", technologies: [], url: "", status: "ACCEPTED", acceptedRecordId: "skill-1", provenance: source,
   }],
   experience: [], education: [],
   skills: [{ id: "skill-1", name: "TypeScript", normalizedName: "typescript", provenance: [source], githubRepositoryIds: [], updatedAt: observedAt }],
@@ -45,6 +45,7 @@ describe("career profile backup", () => {
   it("round trips private data and recomputes derived evidence", () => {
     const restored = importProfileBackup(exportProfileBackup(profile));
     expect(restored.resumeEvidence?.text).toBe("Private resume content");
+    expect(restored.resumeReview[0]?.acceptedRecordId).toBe("skill-1");
     expect(restored.derived.sourceCoverage.github).toBe("PARTIAL");
     expect(restored.derived.comparisons.some((item) => item.subject === "TypeScript")).toBe(true);
   });
@@ -63,6 +64,7 @@ describe("career profile backup", () => {
       damaged((value) => { value.githubEvidence.repositories[0]!.provenance = {} as never; }),
       damaged((value) => { value.skills[0]!.provenance = [null] as never; }),
       damaged((value) => { value.resumeReview[0]!.status = "BROKEN" as never; }),
+      damaged((value) => { value.resumeReview[0]!.acceptedRecordId = [] as never; }),
       damaged((value) => { value.sectionPreferences.skills = "yes" as never; }),
     ];
     for (const source of corrupt) expect(() => importProfileBackup(source, "developer")).toThrow(/incomplete or damaged/);
