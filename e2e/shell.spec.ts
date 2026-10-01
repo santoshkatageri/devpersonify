@@ -76,7 +76,7 @@ test("refined landing page is clear, responsive, and console-clean", async ({ pa
   await page.getByRole("button", { name: /Write feedback/i }).last().click();
   const landingFeedback = page.getByRole("dialog", { name: "Help shape DevPersonify" });
   await expect(landingFeedback).toBeVisible();
-  await expect(landingFeedback.getByText(/How was your DevPersonify experience/)).toBeVisible();
+  await expect(landingFeedback.getByText(/Collected via Tally/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Feedback", exact: true })).toHaveCount(0);
   await landingFeedback.getByRole("button", { name: "Close feedback" }).click();
   await expectNoHorizontalOverflow(page);
@@ -173,19 +173,16 @@ test("Tally feedback loads only on request and preserves private context on desk
   await feedbackButton.click();
   const dialog = page.getByRole("dialog", { name: "Help shape DevPersonify" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(/Did this audit help you understand your repositories/)).toBeVisible();
+  await expect(dialog.getByText(/Collected via Tally/)).toBeVisible();
   const dialogBox = await dialog.boundingBox();
   const viewport = page.viewportSize()!;
   expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
   expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
   expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport.width);
   expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport.height);
-  expect(feedbackNetwork).toEqual([]);
-  await expect(dialog.locator("iframe")).toHaveCount(0);
-  const separateLink = dialog.getByRole("link", { name: /Open feedback form in a new tab/ });
+  const separateLink = dialog.getByRole("link", { name: /Open in new tab/ });
   await expect(separateLink).toHaveAttribute("href", "https://tally.so/r/PdVrRd?product=DevPersonify&area=github_audit&source=app");
   await expect(separateLink).toHaveAttribute("rel", "noreferrer");
-  await dialog.getByRole("button", { name: "Load feedback form" }).click();
   const frame = dialog.locator("iframe");
   await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
   await expect(page.frameLocator('iframe[title="DevPersonify feedback form"]').getByRole("heading", { name: "Feedback form fixture" })).toBeVisible();
@@ -193,15 +190,25 @@ test("Tally feedback loads only on request and preserves private context on desk
   expect(requestedUrl.pathname).toBe("/embed/PdVrRd");
   expect(Object.fromEntries(requestedUrl.searchParams)).toEqual({ product: "DevPersonify", area: "github_audit", source: "app", hideTitle: "1", alignLeft: "1" });
   expect(await page.evaluate(() => localStorage.getItem("devpersonify:feedback:v1"))).toBeNull();
-  await expect(dialog.getByRole("link", { name: /Found a bug/ })).toHaveAttribute("href", "https://github.com/santoshkatageri/devpersonify/issues/new");
+  await expect(dialog.getByRole("link", { name: /Found a bug/ })).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+  expect(await dialog.evaluate((element) => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+  const frameBox = await frame.boundingBox();
+  expect(frameBox!.height).toBeGreaterThan(viewport.height * .65);
+  if (viewport.width >= 640) {
+    await dialog.getByRole("button", { name: "Expand", exact: true }).click();
+    const expandedBox = await dialog.boundingBox();
+    expect(expandedBox!.width).toBe(viewport.width);
+    await dialog.getByRole("button", { name: "Restore size" }).click();
+  }
   await dialog.getByRole("button", { name: "Close feedback" }).click();
   await expect(dialog).not.toBeVisible();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
   await feedbackButton.click();
-  await expect(dialog.locator("iframe")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expectNoHorizontalOverflow(page);
-  expect(feedbackNetwork).toHaveLength(1);
+  expect(feedbackNetwork.length).toBeGreaterThanOrEqual(1);
   expect(errors).toEqual([]);
 });
 

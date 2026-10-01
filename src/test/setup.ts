@@ -37,3 +37,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   window.history.pushState({}, "", "/");
 });
+
+// jsdom lacks native dialog methods; browser tests cover the real modal behavior.
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  HTMLDialogElement.prototype.close = function () { this.open = false; };
+}

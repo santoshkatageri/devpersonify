@@ -46,3 +46,13 @@ export function clearAllCareerDataStorage(username: string): void {
   localStorage.removeItem(`devpersonify:github-readme:v1:${username.toLowerCase()}`);
   localStorage.removeItem(`devpersonify:latex-resume:v1:${username.toLowerCase()}`);
 }
+
+export function listSavedCareerProfiles(): CareerEvidenceProfile[] {
+  try {
+    return Object.keys(localStorage)
+      .filter((item) => item.startsWith(PREFIX))
+      .map((item) => loadCareerProfile(item.slice(PREFIX.length)))
+      .filter((profile): profile is CareerEvidenceProfile => profile !== null)
+      .sort((left, right) => left.username.localeCompare(right.username));
+  } catch { return []; }
+}

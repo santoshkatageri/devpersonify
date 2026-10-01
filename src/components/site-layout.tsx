@@ -106,7 +106,7 @@ export function SiteLayout() {
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600 sm:justify-end">
             <Link className="rounded-md hover:text-ink" to="/privacy">Privacy</Link>
             <Link className="rounded-md hover:text-ink" to="/methodology">Methodology</Link>
-            <Link className="rounded-md hover:text-ink" to="/restore">Restore backup</Link>
+            <Link className="rounded-md hover:text-ink" to="/restore">Backup & restore</Link>
             <a className="rounded-md hover:text-ink" href="https://github.com/santoshkatageri/devpersonify/issues/new" target="_blank" rel="noreferrer">Support via GitHub</a>
           </div>
           <p className="text-xs text-slate-600 sm:col-span-2 sm:text-right">© 2026 DevPersonify. Evidence before claims.</p>

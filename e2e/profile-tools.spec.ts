@@ -17,6 +17,7 @@ test("a backup restores on a new browser without GitHub and supports private Lin
   page.on("request", (request) => { if (!request.url().startsWith("http://127.0.0.1:4173")) externalRequests.push(request.url()); });
   await page.route("https://api.github.com/**", (route) => route.abort());
   await page.goto("/restore");
+  await expect(page.getByText("No career profile is saved on this website in this browser yet.")).toBeVisible();
   await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
   await expect(page).toHaveURL(/\/career\/demo\?step=preview/);
   await expect(page.getByRole("heading", { name: "Demo Developer" })).toBeVisible();
@@ -24,6 +25,11 @@ test("a backup restores on a new browser without GitHub and supports private Lin
   await page.getByRole("button", { name: "Download profile backup" }).click();
   const download = await downloadPromise;
   expect(JSON.parse(await readFile((await download.path())!, "utf8")).profile.careerDirection.professionalHeadline.value).toBe("Platform Engineer");
+  await page.goto("/restore");
+  const backupDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download backup for @demo" }).click();
+  expect(JSON.parse(await readFile((await (await backupDownload).path())!, "utf8")).profile.username).toBe("demo");
+  await page.getByRole("link", { name: "@demo", exact: true }).click();
   await page.getByRole("link", { name: /Review LinkedIn profile/ }).click();
   await page.getByLabel("Your LinkedIn profile text").fill("Platform Engineer. Private draft sentence.");
   await page.getByRole("button", { name: "Compare profiles" }).click();

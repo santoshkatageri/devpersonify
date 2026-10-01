@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { FeedbackControl } from "./feedback-control";
 import { tallyFeedbackFormId } from "./tally-feedback";
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("Tally feedback integration", () => {
   it("defaults to the published DevPersonify form", () => {
@@ -30,30 +30,30 @@ describe("Tally feedback integration", () => {
     expect(tallyFeedbackFormId()).toBeNull();
   });
 
-  it("loads Tally only on request, excludes private route data, and preserves the bug link", async () => {
+  it("loads Tally on opening feedback, excludes private route data, and avoids duplicate bug links", async () => {
     vi.stubEnv("VITE_TALLY_FEEDBACK_FORM_ID", "abc123");
     const user = userEvent.setup();
     const { container } = render(<MemoryRouter initialEntries={["/career/private-user/resume?secret=private"]}><FeedbackControl /></MemoryRouter>);
     expect(container.querySelector("iframe")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Feedback" }));
-    expect(container.querySelector("iframe")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save feedback draft" })).not.toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /Open feedback form in a new tab/ });
+    const link = screen.getByRole("link", { name: /Open in new tab/ });
     const url = new URL(link.getAttribute("href")!);
     expect(url.origin).toBe("https://tally.so");
     expect(url.pathname).toBe("/r/abc123");
     expect(Object.fromEntries(url.searchParams)).toEqual({ product: "DevPersonify", area: "resume_builder", source: "app" });
     expect(link).toHaveAttribute("rel", "noreferrer");
-    await user.click(screen.getByRole("button", { name: "Load feedback form" }));
-    const frame = screen.getByTitle("DevPersonify feedback form");
+    const frame = await screen.findByTitle("DevPersonify feedback form");
     expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
     expect(frame.getAttribute("src")).not.toMatch(/private-user|secret|private/);
     expect(frame.getAttribute("src")).toContain("https://tally.so/embed/abc123?");
-    expect(screen.getByRole("link", { name: /Found a bug/ })).toHaveAttribute("href", "https://github.com/santoshkatageri/devpersonify/issues/new");
+    expect(screen.queryByRole("link", { name: /Found a bug/ })).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+    await user.click(screen.getByRole("button", { name: "Expand" }));
+    expect(screen.getByRole("button", { name: "Restore size" })).toHaveAttribute("aria-pressed", "true");
     expect(localStorage.getItem("devpersonify:feedback:v1")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Close feedback" }));
     expect(container.querySelector("iframe")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Feedback" }));
-    expect(container.querySelector("iframe")).toBeNull();
+    expect(document.body.style.overflow).not.toBe("hidden");
   });
 });

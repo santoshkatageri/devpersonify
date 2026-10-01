@@ -42,7 +42,7 @@ VITE_TALLY_FEEDBACK_FORM_ID=PdVrRd
 
 For local overrides, copy `.env.example` to `.env.local`, set the desired form ID, and restart/rebuild Vite. An explicitly empty value disables Tally and restores local drafts. Never place an API token, Google credential, or webhook secret in a `VITE_` variable. Rebuild and deploy after setting the ID.
 
-The Feedback panel shows an explicit load button and a separate new-tab link. The iframe uses a fixed scrollable height and `no-referrer`. Only `product=DevPersonify`, the general app section, and `source=app` are passed. There is no Tally script running across the site, no automatic route/query forwarding, and no upload of profile data. The iframe is removed when the panel closes.
+Opening Feedback loads the form in a wide modal on desktop and a full-screen modal on mobile. A desktop Expand control and a new-tab link provide more room. The iframe fills the remaining viewport; its form is the only scroll area. Background scrolling is locked, native dialog focus is contained, and the close control stays visible. The GitHub issue link appears once inside Tally. The iframe uses `no-referrer`. Only `product=DevPersonify`, the general app section, and `source=app` are passed. There is no Tally script running across the site, no automatic route/query forwarding, and no upload of profile data. The iframe is removed when the panel closes.
 
 ## Verify before launch
 
