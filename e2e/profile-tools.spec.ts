@@ -228,7 +228,7 @@ test("LinkedIn PDF import previews deterministic sections, preserves drafts on e
   expect(stored).not.toContain(about.slice(0, 60));
   expect(stored).not.toContain("Keep my existing draft");
   const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
-  expect(accessibility.violations.map((item) => item.id)).toEqual([]);
+  expect(accessibility.violations.map((item) => ({ id: item.id, nodes: item.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) }))).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Clear review input", exact: true }).click();
   await expect(page.getByLabel("About / summary", { exact: true })).toHaveValue("");
@@ -237,4 +237,58 @@ test("LinkedIn PDF import previews deterministic sections, preserves drafts on e
   await page.reload();
   await expect(page.getByLabel("Your LinkedIn profile text")).toHaveValue("");
   expect(externalRequests).toEqual([]);
+});
+
+for (const format of ["resume", "readme"] as const) {
+  test(`${format} damaged saved draft is preserved until explicit recovery`, async ({ page }) => {
+    await page.goto("/restore");
+    await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
+    const key = `devpersonify:${format === "resume" ? "latex-resume" : "github-readme"}:v1:demo`;
+    const raw = JSON.stringify({ schemaVersion: 99, username: "demo", privateDraft: "Preserve these settings" });
+    await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), { key, raw });
+    await page.goto(`/career/demo/${format}`);
+    const recovery = page.getByRole("region", { name: "Saved draft recovery" });
+    await expect(recovery).toBeVisible();
+    await expect(recovery).toContainText("different format version");
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(raw);
+    const downloading = page.waitForEvent("download");
+    await recovery.getByRole("button", { name: "Download original draft" }).click();
+    expect(await readFile((await (await downloading).path())!, "utf8")).toBe(raw);
+    await recovery.getByRole("button", { name: "Start fresh" }).click();
+    await recovery.getByRole("button", { name: "Cancel", exact: true }).click();
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(raw);
+    const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(accessibility.violations.map((item) => ({ id: item.id, nodes: item.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) }))).toEqual([]);
+    await recovery.getByRole("button", { name: "Start fresh" }).click();
+    await recovery.getByRole("button", { name: "Replace saved draft" }).click();
+    await expect(recovery).toHaveCount(0);
+    expect(JSON.parse((await page.evaluate((key) => localStorage.getItem(key), key))!).schemaVersion).toBe(1);
+    await page.reload();
+    await expect(recovery).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+test("career outcomes explain each audience and route users to the selected deliverable", async ({ page }) => {
+  await page.goto("/");
+  const guide = page.getByRole("region", { name: "What do you want to leave with?" });
+  await expect(guide.getByText(/An editable Word resume/)).toBeVisible();
+  await expect(guide.getByText(/Starting with a resume alone is not available yet/)).toBeVisible();
+  await guide.getByText("What should I focus on at my career stage?", { exact: true }).click();
+  for (const [stage, focus] of [["Fresher / graduate", "Show what you can build and explain."], ["Mid-level engineer", "Make your ownership and results clear."], ["Experienced engineer", "Explain your scope, decisions, and impact."]]) {
+    await guide.getByRole("button", { name: stage!, exact: true }).click();
+    await expect(guide.getByRole("heading", { name: focus!, exact: true })).toBeVisible();
+  }
+  await page.goto("/restore");
+  await page.getByLabel("Profile backup file").setInputFiles({ name: "profile.json", mimeType: "application/json", buffer: Buffer.from(exportProfileBackup(profile)) });
+  await page.goto("/");
+  await expect(guide.getByRole("link", { name: "Choose your resume content →" })).toHaveAttribute("href", "/career/demo/resume");
+  await guide.getByRole("button", { name: "A LinkedIn action plan" }).click();
+  await expect(guide.getByRole("link", { name: "Add your LinkedIn profile →" })).toHaveAttribute("href", "/career/demo/linkedin-review");
+  await guide.getByRole("button", { name: "A clearer GitHub profile" }).click();
+  await expect(guide.getByRole("link", { name: "Choose your README content →" })).toHaveAttribute("href", "/career/demo/readme");
+  await expect(guide.getByText(/DevPersonify does not publish it/)).toBeVisible();
+  const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(accessibility.violations.map((item) => ({ id: item.id, nodes: item.nodes.map((node) => ({ target: node.target, summary: node.failureSummary })) }))).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

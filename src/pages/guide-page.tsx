@@ -1,3 +1,4 @@
+import { CareerOutcomeGuide } from "../components/career-outcome-guide";
 import { Link } from "react-router-dom";
 
 const steps = [
@@ -12,9 +13,10 @@ export function GuidePage() {
     <p className="eyebrow">User guide</p>
     <h1 className="mt-3 text-4xl font-semibold tracking-tight">What you provide. What you get.</h1>
     <p className="mt-5 max-w-3xl text-base leading-7 text-slate-600">DevPersonify helps developers and graduates organize their public projects and career information into drafts they can review and use. You choose the evidence and approve the details.</p>
+    <CareerOutcomeGuide />
     <section aria-labelledby="guide-before" className="mt-8 rounded-2xl border border-cobalt-100 bg-cobalt-50 p-5">
       <h2 id="guide-before" className="text-lg font-semibold">Before you start</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-700">Bring your GitHub username. A resume is optional for the GitHub audit and README; add it when you want to include employment or education. Graduates can use coursework, personal projects, internships, and contributions they can explain.</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">New profiles currently start with a GitHub username, even if your repositories contain little of your work. A resume is optional for the GitHub audit and README; add it when you want to include employment or education. Graduates can use coursework, personal projects, internships, and contributions they can explain.</p>
       <p className="mt-2 text-sm leading-6 text-slate-700">Have a saved profile already? <Link to="/restore" className="font-semibold text-cobalt-700 underline">Restore your backup</Link> to continue without a new GitHub request.</p>
     </section>
     <ol className="mt-8 space-y-5">

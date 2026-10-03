@@ -1,5 +1,7 @@
 # DevPersonify V1 Launch Hardening Report
 
+> Historical report from 2026-08-18. Its PASS, test counts, local-feedback model, and future-feature labels describe that release only. For current Tally delivery, LinkedIn PDF review, draft recovery, and release gates, use [the current launch summary](launch-p0-p1.md). This document does not certify the current public deployment.
+
 ## Status
 
 **PASS** — 2026-08-18

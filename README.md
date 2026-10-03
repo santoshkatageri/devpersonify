@@ -9,13 +9,23 @@ Career profiles show backup reminders after resume import, evidence review, and 
 
 ## Current status
 
-Launch update: profile backups can be downloaded from Career Profile or Backup & restore and restored on a new browser at `/restore`. Manual LinkedIn review at `/career/:username/linkedin-review` compares pasted profile wording with stored evidence without accessing LinkedIn or retaining pasted text. Saved career profiles remain usable without a new GitHub request; imported GitHub evidence is preserved until the user clears it.
+Launch update: profile backups can be downloaded from Career Profile or Backup & restore and restored on a new browser at `/restore`. LinkedIn review at `/career/:username/linkedin-review` accepts a local profile PDF or pasted sections, suggests editable section placement, and compares supplied wording with stored evidence. Imported and pasted text stays in memory; the app does not read LinkedIn automatically. Saved career profiles remain usable without a new GitHub request; imported GitHub evidence is preserved until the user clears it.
 
 Feedback uses the published [DevPersonify Tally form](https://tally.so/r/PdVrRd). Tally’s native Google Sheets connection is configured separately in Tally; see [setup instructions](docs/feedback-tally.md). Override `VITE_TALLY_FEEDBACK_FORM_ID` at build time to select another form, or explicitly set it empty to use local browser drafts without delivery. Bugs go to public GitHub Issues. No Supabase or Google credentials are needed in this app.
 
 Phase 5 — Evidence-backed LaTeX Resume Builder: **PASSED**.
 
 The canonical Career Evidence Profile powers independent GitHub Profile README and Resume Studio outputs. Resume Studio now exports both deterministic LaTeX and a real browser-generated Word/DOCX file from the same selections, ordering, and presentation overrides. Shared clipboard fallbacks, exact local downloads, and a privacy-preserving local feedback control complete V1 launch hardening without changing source evidence. Career tools use no AI, external compiler/document service, backend, database, authentication, paid API, OAuth, GitHub token, or repository write operation. Optional feedback delivery uses an external Tally form; Google authorization takes place in Tally’s integration settings.
+
+## What users should leave with
+
+Choose one output: an editable Word resume (optional LaTeX), a GitHub profile README, or a LinkedIn review action plan. Home and the user guide explain the required input and finish line, with examples for graduates, mid-level engineers, and experienced engineers. Users verify claims and publish/share outputs themselves. Current new-profile creation requires a GitHub username; resume-only entry is a product gap, not a shipped feature.
+
+## P1 reliability
+
+README and resume settings are validated before use. Valid v1 drafts keep their selections, order, and edits. Damaged or unsupported drafts stay intact with a recovery download and an explicit reset path. No guessed migration is attempted for unknown versions. Profile backups still exclude separate document presentation settings.
+
+See [current launch status](docs/launch-p0-p1.md), [prioritized backlog](docs/backlog.md), and [deployed-release verification](docs/release-verification.md). Passing local tests does not confirm the public site is running the same build.
 
 ## Intended V1 stack
 

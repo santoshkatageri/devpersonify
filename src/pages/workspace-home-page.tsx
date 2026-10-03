@@ -1,3 +1,4 @@
+import { CareerOutcomeGuide } from "../components/career-outcome-guide";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FileIcon, GitBranchIcon, LayersIcon, SearchIcon, ShieldIcon, TargetIcon } from "../components/icons";
@@ -78,6 +79,7 @@ export function WorkspaceHomePage({ session }: { session: SavedWorkflow }) {
         </section>
       </div>
     </div>
+    <CareerOutcomeGuide profile={profile} username={session.username} />
     <div className="mt-4 grid gap-3 sm:grid-cols-3">{metrics.map(({ value, label, detail, icon: Icon, color }) => <div key={label} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"><span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${color}`}><Icon className="h-5 w-5" /></span><dl><dt className="text-xs font-medium text-slate-600">{label}</dt><dd className="mt-1"><span className="text-2xl font-semibold tracking-tight">{value}</span><span className="mt-1 block text-[11px] leading-4 text-slate-600">{detail}</span></dd></dl></div>)}</div>
     <section aria-labelledby="your-work-title" className="mt-9">
       <div className="flex flex-wrap items-end justify-between gap-2"><div><h2 id="your-work-title" className="text-xl font-semibold tracking-tight">Your work</h2><p className="mt-1 text-sm text-slate-600">Shape your story. Choose where to pick up.</p></div><Link to="/guide" className="inline-flex min-h-11 items-center text-xs font-semibold text-cobalt-700 underline">Need a hand? User guide →</Link></div>

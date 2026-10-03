@@ -169,6 +169,30 @@ describe("local resume processing", () => {
     expect(items.find((entry) => entry.section === "other")?.title).toBe("Reliability");
   });
 
+  it.each(["WORK EXPERIENCE:", "Professional Experience —", "Employment History", "work history"])("recognizes the supported experience heading %s across page continuations", (heading) => {
+    const text = joinPdfPages([
+      [{ left: 40, text: `${heading}\nPlatform Engineer\nExample Company\nJan 2022 – Present\nMaintained developer services.` }],
+      [{ left: 40, text: "Reduced incident recovery time.\n\nACADEMIC BACKGROUND:\nComputer Science\nExample University\n2016 — 2020" }],
+    ]);
+    const items = extractResumeItems(text, "resume:synthetic");
+    const job = items.find((item) => item.section === "experience");
+    expect(job).toMatchObject({ title: "Platform Engineer", organization: "Example Company", startDate: "Jan 2022", endDate: "Present", status: "PENDING" });
+    expect(job?.description).toBe("Maintained developer services.\nReduced incident recovery time.");
+    expect(items.filter((item) => item.section === "experience")).toHaveLength(1);
+    expect(items.find((item) => item.section === "education")).toMatchObject({ title: "Computer Science", organization: "Example University", startDate: "2016", endDate: "2020" });
+  });
+
+  it("retains Unicode text, distinct language names, and unrecognized introductory content", async () => {
+    const result = await processResumeFile(fileWithArrayBuffer([
+      "Career narrative\r\nRésumé of a developer working on café software.\r\n\r\nTECHNICAL SKILLS:\r\nC++, C#, TypeScript\r\n\r\nPERSONAL PROJECTS:\r\nCafé tools\r\nBuilt an accessible interface — with keyboard navigation.\r\nhttps://example.test/project",
+    ], "synthetic-resume.txt", "text/plain"));
+    expect(result.items.filter((item) => item.section === "skills").map((item) => item.title)).toEqual(["C++", "C#", "TypeScript"]);
+    expect(result.items.find((item) => item.section === "other")?.description).toContain("Résumé of a developer");
+    expect(result.items.find((item) => item.section === "projects")).toMatchObject({ title: "Café tools", url: "https://example.test/project" });
+    expect(result.document.text).toContain("Built an accessible interface — with keyboard navigation.");
+    expect(result.items.every((item) => item.status === "PENDING")).toBe(true);
+  });
+
   it("retains substantive experience sentences containing date ranges", () => {
     const items = extractResumeItems("EXPERIENCE\nSoftware Engineer\nExample Company\n2020 - 2024\nMaintained the library during 2021–present and mentored contributors.\nDelivered tools from Jan 2022 to Dec 2023 for the team.", "resume:synthetic");
     expect(items[0]?.description).toBe("Maintained the library during 2021–present and mentored contributors.\nDelivered tools from Jan 2022 to Dec 2023 for the team.");

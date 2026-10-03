@@ -1,8 +1,19 @@
 # Implementation Backlog
 
-Updated: 2026-08-18
+Current triage: 2026-10-03. The phase lists below are historical planning records, not a current list of unfinished tasks. Refer to [launch status](launch-p0-p1.md) and [release checks](release-verification.md) before choosing work.
 
-Only Phase 1 is ready to start after Phase 0. Later items are ordered for planning but must not be implemented early.
+## Current priorities
+
+- **P0 release gate:** deploy the reviewed commit, verify its identity on the public domain, then check production audit, exports, restore, LinkedIn import, and Tally→Sheets delivery.
+- **P1 implemented in this pass:** nested README/resume settings validation with loss-safe recovery; explicit v1 compatibility/future-version policy; branch CI and deployed-release checks; broader synthetic parser coverage and continuation fixes; compiler guidance; outcome and career-stage guidance; reconciliation of launch documentation.
+- **Next P1 product gap:** allow a resume/manual-first profile without a GitHub account. Do not advertise this as supported yet.
+- **P1 ongoing validation:** more anonymized parsing failures and observed first-user journeys. The new fixtures do not establish universal PDF compatibility.
+- **P2:** complete workspace backups including document presentation settings, route splitting/performance work, and additional templates when demand is demonstrated.
+- **Already delivered:** Tally/Sheets configuration, automated accessibility scans, career backup/restore and recent history, returning-user home, local Word/PDF resume input, local LinkedIn PDF review, and guided sections.
+
+## Historical phase plan (2026-08-18)
+
+The phase gates and future-feature labels below record the original plan; some have since shipped or changed priority.
 
 ## P0 — Phase 1: Product shell and landing
 

@@ -12,23 +12,29 @@ export interface LinkedInPdfImport {
 }
 type Column = { left: number; text: string };
 const headings: Record<string, LinkedInSectionKey> = {
-  headline: "headline", header: "headline", summary: "about", about: "about",
-  experience: "experience", education: "education", "top skills": "skills", skills: "skills",
+  headline: "headline", header: "headline", summary: "about", about: "about", "professional summary": "about",
+  experience: "experience", "work experience": "experience", "professional experience": "experience",
+  education: "education", "academic background": "education", "top skills": "skills", skills: "skills",
   contact: "contact", "contact info": "contact", "contact information": "contact",
   certifications: "certifications", "licenses & certifications": "certifications",
   "licenses and certifications": "certifications", recommendations: "endorsements", endorsements: "endorsements",
   projects: "featured", featured: "featured", posts: "posts", activity: "posts",
 };
-const extraHeadings = /^(languages|honors[-– ]awards|honors(?: and| &)? awards|publications|patents|volunteer experience|organizations|interests|courses|test scores)$/i;
-const clean = (text: string) => text.replaceAll("\u0000", "").split(/\r?\n/).filter((line) => !/^\s*Page\s+\d+\s+of\s+\d+\s*$/i.test(line)).join("\n").trim();
+const extraHeadings = /^(languages|honors\s*[-–—]\s*awards|honors(?: and| &)? awards|publications|patents|volunteer experience|volunteering|organizations|interests|courses|test scores)$/i;
+// Normalize headings only: keep the person's spelling, punctuation and spacing
+// in extracted content unchanged. Counts occur in copied profile headings.
+const normalizeHeading = (line: string) => line.normalize("NFKC").trim().replace(/:$/, "").replace(/\s*\(\d+\)$/, "").replace(/\s+/g, " ").trim().toLowerCase();
+const clean = (text: string) => text.replaceAll("\u0000", "").replace(/\r\n?/g, "\n").split("\n").filter((line) => !/^\s*Page\s+\d+\s+of\s+\d+\s*$/i.test(line)).join("\n").trim();
 
 /** Fixed English heading rules. Keep sidebar and main-column continuations separate. */
 export function mapLinkedInPdfPages(pages: Column[][]): LinkedInPdfImport {
   const sections = emptyLinkedInSections();
-  const first = pages[0];
+  // Coordinates identify already-separated columns regardless of their order;
+  // never mutate the caller's page/column order.
+  const first = pages.find((page) => page.some((column) => clean(column.text)))?.slice().sort((a, b) => a.left - b.left);
   // Only recognize the export layout when there are two columns and explicit
   // sidebar headings. Unknown layouts retain their text for manual review.
-  const twoColumns = first?.length === 2 && /^(Contact|Top Skills)$/mi.test(first[0]!.text)
+  const twoColumns = first?.length === 2 && clean(first[0]!.text).split("\n").some((line) => ["contact", "contact info", "contact information", "top skills"].includes(normalizeHeading(line)))
     && first[1]!.left - first[0]!.left > 80;
   const streams: Array<{ text: string; header: boolean }> = [];
   if (twoColumns && pages.every((page) => page.every((column) =>
@@ -42,7 +48,7 @@ export function mapLinkedInPdfPages(pages: Column[][]): LinkedInPdfImport {
   for (const stream of streams) {
     let key: LinkedInSectionKey | null = stream.header ? "headline" : null;
     for (const line of stream.text.split("\n")) {
-      const heading = line.trim().replace(/:$/, "").toLowerCase();
+      const heading = normalizeHeading(line);
       if (headings[heading]) key = headings[heading];
       else if (extraHeadings.test(heading)) { key = null; unmapped.push(line); }
       else if (key) sections[key] += `${sections[key] ? "\n" : ""}${line}`;
