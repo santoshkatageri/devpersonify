@@ -178,6 +178,10 @@ const PREAMBLE = `\\documentclass[10pt,letterpaper]{article}
 
 % DevPersonify ATS-friendly resume template
 % Template: ${CLASSIC_TEMPLATE_ID} v${CLASSIC_TEMPLATE_VERSION}
+% Compile with pdfLaTeX for English/Latin text.
+% Other scripts: use XeLaTeX or LuaLaTeX and configure suitable fonts and languages.
+% Place custom font settings after the package declarations below.
+% Changing the compiler alone does not guarantee every character will render.
 \\usepackage[margin=0.68in]{geometry}
 \\usepackage{iftex}
 \\ifPDFTeX

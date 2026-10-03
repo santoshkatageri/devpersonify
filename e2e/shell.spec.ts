@@ -65,7 +65,7 @@ test("refined landing page is clear, responsive, and console-clean", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Your work already tells a story");
   await expect(page.getByText("Illustrative output · example values")).toBeVisible();
   await expect(page.getByRole("link", { name: /Start here/i })).toBeVisible();
-  await expect(page.getByText("Available")).toHaveCount(6);
+  await expect(page.getByText("Available", { exact: true })).toHaveCount(6);
   await expect(page.getByText(/planned/i)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Turn your evidence into a profile people can understand." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Turn the same evidence into a professional resume." })).toBeVisible();

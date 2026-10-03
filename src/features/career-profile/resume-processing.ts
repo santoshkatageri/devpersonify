@@ -93,10 +93,12 @@ export function pdfTextColumns(items: Array<PdfTextItem | object>, pageWidth: nu
 }
 
 export function joinPdfPages(pages: PdfColumn[][]): string {
-  // When the same two columns continue across pages, finish each column first.
+  // When the same one or two columns continue, finish each column first.
   // This keeps a main-column job from being appended to a sidebar's education.
+  // A page boundary alone is not a new paragraph/job; preserve paragraph
+  // boundaries from the actual text instead of adding another blank line.
   const first = pages[0];
-  const continuedColumns = first?.length === 2 && pages.every((page) => page.length === 2
+  const continuedColumns = first && [1, 2].includes(first.length) && pages.every((page) => page.length === first.length
     && page.every((column, index) => Math.abs(column.left - first[index]!.left) < 20));
   return continuedColumns
     ? first.map((_, index) => pages.map((page) => page[index]!.text).join("\n")).join("\n\n")

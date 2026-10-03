@@ -2,7 +2,7 @@ name: Check application
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, "launch-*", "release/**", "p1-*", "p1/**"]
 permissions:
   contents: read
 jobs:
